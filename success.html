@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>सत्यापन सफल | Phone Verified - जीवन ज्योति फाउंडेशन गाजीपुर</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Rozha+One&family=Yatra+One&display=swap" rel="stylesheet">
+    <style>
+      .font-hindi-title { font-family: 'Rozha One', 'Yatra One', serif; }
+      .font-seal { font-family: 'Cinzel', serif; }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-amber-50 via-orange-50/40 to-emerald-50/40 min-h-screen flex items-center justify-center p-4 font-sans text-slate-900 antialiased selection:bg-amber-500 selection:text-white">
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl border-2 border-emerald-500/20 overflow-hidden relative">
+      <!-- Top Decorative Indian Flag Accent Ribbon -->
+      <div class="h-2.5 w-full bg-gradient-to-r from-[#FF9933] via-white to-[#138808]"></div>
+
+      <div class="p-6 sm:p-8 text-center space-y-6">
+        <!-- Success Animated Check Circle -->
+        <div class="relative mx-auto w-24 h-24">
+          <div class="absolute inset-0 rounded-full bg-emerald-100 animate-ping opacity-30"></div>
+          <div class="relative w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-xl shadow-emerald-500/30 border-4 border-white">
+            <svg class="w-12 h-12 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Success Header -->
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-100/80 text-emerald-900 font-black text-xs uppercase tracking-wider border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span>Firebase Phone Authentication Verified</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-900 font-hindi-title">
+            मोबाइल नंबर सफलतापूर्वक सत्यापित!
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Google Firebase Phone Auth द्वारा आपके पंजीकृत भारतीय मोबाइल नंबर का सुरक्षा सत्यापन सफलतापूर्वक पूर्ण हो चुका है।
+          </p>
+        </div>
+
+        <!-- Verified Details Card -->
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left space-y-2.5 shadow-inner">
+          <div class="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
+            <span class="text-slate-500 font-bold">संस्था:</span>
+            <span class="font-black text-blue-950 font-hindi-title">जीवन ज्योति फाउंडेशन ग़ाज़ीपुर</span>
+          </div>
+
+          <div class="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
+            <span class="text-slate-500 font-bold">सत्यापित मोबाइल:</span>
+            <span id="verifiedPhoneDisplay" class="font-mono font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-sm">
+              +91 ••••• •••••
+            </span>
+          </div>
+
+          <div class="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
+            <span class="text-slate-500 font-bold">प्रमाणीकरण विधि:</span>
+            <span class="font-bold text-slate-800 flex items-center gap-1">
+              <span class="text-amber-600">🔥</span> Firebase Phone SMS Auth
+            </span>
+          </div>
+
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500 font-bold">सत्यापन समय:</span>
+            <span id="verifiedTimeDisplay" class="font-medium text-slate-600">
+              --
+            </span>
+          </div>
+        </div>
+
+        <!-- Action CTA Buttons -->
+        <div class="space-y-3 pt-2">
+          <a
+            href="/"
+            class="block w-full py-3.5 bg-gradient-to-r from-blue-900 to-indigo-900 hover:from-blue-950 hover:to-indigo-950 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-blue-900/25 transition transform hover:-translate-y-0.5 text-center"
+          >
+            🏠 मुख्य पोर्टल पर वापस जाएं (Back to Portal)
+          </a>
+
+          <button
+            type="button"
+            onclick="window.close()"
+            class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+          >
+            यह विंडो बंद करें
+          </button>
+        </div>
+
+        <!-- Footer Seal -->
+        <div class="pt-2 text-[10px] text-slate-400 font-medium">
+          जीवन ज्योति फाउंडेशन गाजीपुर (उ.प्र.) | नीति आयोग: UP/2018/0207700
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Extract query parameters if passed: ?phone=...
+      const urlParams = new URLSearchParams(window.location.search);
+      const phoneParam = urlParams.get('phone');
+      if (phoneParam) {
+        const clean = phoneParam.replace(/\D/g, '').slice(-10);
+        if (clean.length === 10) {
+          document.getElementById('verifiedPhoneDisplay').innerText = `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`;
+        } else {
+          document.getElementById('verifiedPhoneDisplay').innerText = phoneParam;
+        }
+      } else {
+        document.getElementById('verifiedPhoneDisplay').innerText = '+91 80523 61666 (सत्यापित)';
+      }
+
+      // Display formatted Indian Standard Time
+      const now = new Date();
+      document.getElementById('verifiedTimeDisplay').innerText = now.toLocaleString('hi-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+    </script>
+  </body>
+</html>

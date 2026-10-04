@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="favBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#990000" />
+      <stop offset="100%" stop-color="#660000" />
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE082" />
+      <stop offset="50%" stop-color="#FFD700" />
+      <stop offset="100%" stop-color="#FFA000" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Circle -->
+  <circle cx="256" cy="256" r="248" fill="url(#favBg)" stroke="url(#goldGrad)" stroke-width="12" />
+  <circle cx="256" cy="256" r="226" fill="none" stroke="url(#goldGrad)" stroke-width="3" stroke-dasharray="8 6" />
+  
+  <!-- Inner Ring -->
+  <circle cx="256" cy="256" r="160" fill="#ffffff" fill-opacity="0.08" stroke="url(#goldGrad)" stroke-width="4" />
+
+  <!-- Monogram JJF -->
+  <text x="256" y="280" font-family="'Cinzel', 'Georgia', serif" font-size="110" font-weight="900" fill="url(#goldGrad)" text-anchor="middle" letter-spacing="4">
+    JJF
+  </text>
+  
+  <!-- Foundation Name in English & Hindi Subtitle -->
+  <text x="256" y="324" font-family="'Cinzel', sans-serif" font-size="20" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="3" opacity="0.95">
+    FOUNDATION
+  </text>
+
+  <!-- Decorative Stars -->
+  <text x="256" y="160" font-family="sans-serif" font-size="28" fill="url(#goldGrad)" text-anchor="middle">
+    ★ ★ ★
+  </text>
+  <text x="256" y="390" font-family="sans-serif" font-size="18" font-weight="bold" fill="url(#goldGrad)" text-anchor="middle" letter-spacing="2">
+    GHAZIPUR (U.P.)
+  </text>
+</svg>

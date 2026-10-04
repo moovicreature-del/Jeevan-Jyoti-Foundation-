@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-icon-512.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation</title>
+    <meta name="description" content="Jeevan Jyoti Foundation Ghazipur — Official NGO platform for Education, Healthcare, Food Distribution & Volunteerism." />
+    <meta property="og:title" content="जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation" />
+    <meta property="og:description" content="Jeevan Jyoti Foundation Ghazipur — Official NGO platform for Education, Healthcare, Food Distribution & Volunteerism." />
+    <meta property="og:image" content="/pwa-icon-512.png" />
+    <meta property="og:site_name" content="Jeevan Jyoti Foundation Ghazipur" />
+    <meta property="article:publisher" content="https://facebook.com/jeevanjyotifoundationghazipur" />
+    <meta name="twitter:image" content="/pwa-icon-512.png" />
+    <meta name="theme-color" content="#8B0000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Jeevan Jyoti" />
+    <meta name="application-name" content="Jeevan Jyoti Foundation" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Great+Vibes&family=Rozha+One&family=Yatra+One&display=swap" rel="stylesheet">
+    <!-- Google Identity Services for Direct OAuth Token Handling -->
+    <script src="https://accounts.google.com/gsi/client" async defer onerror="console.debug('[GSI] Script load skipped or deferred.')"></script>
+
+    <!-- ========================================================================= -->
+    <!-- 🔑 FIREBASE API CONFIGURATION (PASTE YOUR FIREBASE KEYS HERE)            -->
+    <!-- अपनी Firebase Console > Project Settings > General > SDK setup and config -->
+    <!-- से चाबियां नीचे पेस्ट करें यदि आप डिफ़ॉल्ट बदलना चाहते हैं:                -->
+    <!-- ========================================================================= -->
+    <script>
+      window.__FIREBASE_CONFIG__ = {
+        // [1] यहाँ अपना Firebase Web API Key पेस्ट करें:
+        apiKey: "AIzaSyBDD0Idfhau6HT2kFARUV0hUkls7aPs28s",
+
+        // [2] यहाँ अपना Auth Domain पेस्ट करें:
+        authDomain: "gen-lang-client-0584352717.firebaseapp.com",
+
+        // [3] यहाँ अपना Project ID पेस्ट करें:
+        projectId: "gen-lang-client-0584352717",
+
+        // [4] यहाँ अपना Storage Bucket पेस्ट करें:
+        storageBucket: "gen-lang-client-0584352717.firebasestorage.app",
+
+        // [5] यहाँ अपना Messaging Sender ID पेस्ट करें:
+        messagingSenderId: "650488020164",
+
+        // [6] यहाँ अपना App ID पेस्ट करें:
+        appId: "1:650488020164:web:b032e493fa3415bf5d5d91"
+      };
+    </script>
+  </head>
+  <body class="bg-amber-50/30 text-gray-900 antialiased selection:bg-amber-500 selection:text-white">
+    <!-- Invisible reCAPTCHA container for Firebase Phone Authentication -->
+    <div id="recaptcha-container"></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

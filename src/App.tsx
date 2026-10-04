@@ -1,0 +1,603 @@
+import React, { useState, useEffect } from 'react';
+import { Navbar } from './components/Navbar';
+import { HeroSection } from './components/HeroSection';
+import { ActionCenter } from './components/ActionCenter';
+import { FourPillars } from './components/FourPillars';
+import { LiveImpactDashboard } from './components/LiveImpactDashboard';
+import { GhazipurMap } from './components/GhazipurMap';
+import { VolunteerTaskPortal } from './components/VolunteerTaskPortal';
+import { RecentEventsCarouselSkeleton } from './components/RecentEventsCarousel';
+import { VideoShowcase } from './components/VideoShowcase';
+import { DonationWallOfFame } from './components/DonationWallOfFame';
+import { VolunteerLeaderboard } from './components/VolunteerLeaderboard';
+import { VolunteerVoices } from './components/VolunteerVoices';
+import { ImpactStories } from './components/ImpactStories';
+import { CertificateVerificationPortal } from './components/CertificateVerificationPortal';
+import { VerifyPage } from './components/VerifyPage';
+import { Footer } from './components/Footer';
+import { HomeNoticeBanner } from './components/HomeNoticeBanner';
+import { HomePhotoSlider } from './components/HomePhotoSlider';
+import { CampaignGallerySliderSkeleton } from './components/CampaignGallerySlider';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+
+// Lazy Loaded Heavy Gallery & Carousel Components for Peak Page Performance
+const CampaignGallerySlider = React.lazy(() => import('./components/CampaignGallerySlider'));
+const RecentEventsCarousel = React.lazy(() => import('./components/RecentEventsCarousel'));
+
+// Utilities and Floating tools
+import { JyotiBot } from './components/JyotiBot';
+import { NetworkStatusToast } from './components/NetworkStatusToast';
+import { PwaInstallBanner } from './components/PwaInstallBanner';
+import { FloatingShareToolbar } from './components/FloatingShareToolbar';
+import { FestivalGreetingsPortal } from './components/FestivalGreetingsPortal';
+import { ProfessionalFormsPortal } from './components/ProfessionalFormsPortal';
+import { MotivationalQuotesPosterStudio } from './components/quotes/MotivationalQuotesPosterStudio';
+
+import { Volunteer, TaskRecord, DonationRecord, FestivalGreetingRecord } from './types';
+import { INITIAL_VOLUNTEERS } from './data/taskData';
+import { initAutomatedPublicArchiveBackgroundSync } from './services/publicVerifiedArchiveService';
+import { useHomeContent } from './context/HomeContentContext';
+import { GlobalSkeletonLoader } from './components/common/GlobalSkeletonLoader';
+
+// Direct Modals Imports
+import { VolunteerCertificateModal } from './components/VolunteerCertificateModal';
+import { DonationCertificateModal } from './components/DonationCertificateModal';
+import { Donation80GReceiptView } from './components/donation/Donation80GReceiptView';
+import { Donation80GPortal } from './components/donation/Donation80GPortal';
+import { DonorDashboardModal } from './components/donation/DonorDashboardModal';
+import { SwayamSewakCardModal } from './components/SwayamSewakCardModal';
+import { TaskAppreciationCardModal } from './components/TaskAppreciationCardModal';
+import { FestivalCertificateModal } from './components/FestivalCertificateModal';
+import { AnnualSummaryReportModal } from './components/AnnualSummaryReportModal';
+import { AnnualReportCardModal } from './components/AnnualReportCardModal';
+import { SuperAdminPortal } from './components/admin/SuperAdminPortal';
+import { CameraQrScannerModal } from './components/CameraQrScannerModal';
+import { OtpVerificationModal } from './components/OtpVerificationModal';
+import { FirebasePhoneAuthModal } from './components/FirebasePhoneAuthModal';
+import { TwilioWhatsAppOtpModal } from './components/TwilioWhatsAppOtpModal';
+import { DownloadCertificatesModal } from './components/DownloadCertificatesModal';
+import { QuickDonateOverlay } from './components/donation/QuickDonateOverlay';
+import { GoogleDriveHubModal } from './components/drive/GoogleDriveHubModal';
+import { StaffHubModal } from './components/staff/StaffHubModal';
+
+export function App() {
+  const { isLoading: isFirestoreLoading } = useHomeContent();
+  const [verifyRouteId, setVerifyRouteId] = useState<string | null>(null);
+
+  // Modals state
+  const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
+  const [selectedIdCardVol, setSelectedIdCardVol] = useState<Volunteer | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
+  const [selectedDonation, setSelectedDonation] = useState<DonationRecord | null>(null);
+  const [selectedFestivalGreeting, setSelectedFestivalGreeting] = useState<FestivalGreetingRecord | null>(null);
+  const [showDonateModal, setShowDonateModal] = useState(false);
+  const [showQuickDonateModal, setShowQuickDonateModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAnnualReportCardModal, setShowAnnualReportCardModal] = useState(false);
+  const [showMyDonationsModal, setShowMyDonationsModal] = useState(false);
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [showQrScannerModal, setShowQrScannerModal] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showFirebasePhoneModal, setShowFirebasePhoneModal] = useState(false);
+  const [showTwilioWhatsAppModal, setShowTwilioWhatsAppModal] = useState(false);
+  const [showDownloadCertificatesModal, setShowDownloadCertificatesModal] = useState(false);
+  const [downloadCertInitialPhone, setDownloadCertInitialPhone] = useState<string>('');
+  const [downloadCertInitialId, setDownloadCertInitialId] = useState<string>('');
+  const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [staffModalTab, setStaffModalTab] = useState<'options' | 'registration' | 'download'>('options');
+  const [urlStaffId, setUrlStaffId] = useState<string | null>(null);
+  const [activeFormTab, setActiveFormTab] = useState<'appreciation' | 'volunteer' | 'festival' | 'verification' | 'donation' | null>(null);
+
+  // Check URL params and boot background services on mount
+  useEffect(() => {
+    // Automated background service: Archive all issued certificates to Firestore 'public_verified_archive'
+    initAutomatedPublicArchiveBackgroundSync().catch(() => {});
+
+    // Listen for Staff Modal Custom Events
+    const handleOpenStaffEvent = (e: any) => {
+      setStaffModalTab(e.detail?.tab || 'options');
+      if (e.detail?.staffId) {
+        setUrlStaffId(e.detail.staffId);
+      }
+      setShowStaffModal(true);
+    };
+    const handleOpenStaffReg = () => {
+      setStaffModalTab('registration');
+      setUrlStaffId(null);
+      setShowStaffModal(true);
+    };
+    const handleOpenStaffCard = () => {
+      setStaffModalTab('download');
+      setShowStaffModal(true);
+    };
+
+    window.addEventListener('open-staff-modal', handleOpenStaffEvent);
+    window.addEventListener('open-staff-registration', handleOpenStaffReg);
+    window.addEventListener('open-staff-id-card', handleOpenStaffCard);
+
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const verifyParam =
+        urlParams.get('verify') ||
+        urlParams.get('cert_id') ||
+        urlParams.get('id') ||
+        urlParams.get('certNo') ||
+        urlParams.get('receipt_no');
+      if (verifyParam) {
+        setVerifyRouteId(verifyParam);
+      }
+
+      // Check for direct download link (e.g. from approval SMS or WhatsApp)
+      const downloadCertParam =
+        urlParams.get('downloadCert') ||
+        urlParams.get('download_cert') ||
+        urlParams.get('download');
+      const phoneParam = urlParams.get('phone') || urlParams.get('mobile');
+
+      if (downloadCertParam || (phoneParam && urlParams.get('action') === 'download')) {
+        if (phoneParam) {
+          setDownloadCertInitialPhone(phoneParam);
+        }
+        if (downloadCertParam) {
+          setDownloadCertInitialId(downloadCertParam);
+        }
+        setShowDownloadCertificatesModal(true);
+      }
+
+      const staffParam =
+        urlParams.get('downloadStaffCard') ||
+        urlParams.get('staffCard') ||
+        urlParams.get('staffId');
+      if (staffParam) {
+        setUrlStaffId(staffParam);
+        setStaffModalTab('download');
+        setShowStaffModal(true);
+      }
+      const phoneAuthParam = urlParams.get('phone_auth') || urlParams.get('otp_login') || urlParams.get('firebase_auth');
+      if (phoneAuthParam) {
+        setShowFirebasePhoneModal(true);
+      }
+      const whatsappParam = urlParams.get('whatsapp_otp') || urlParams.get('twilio_otp') || urlParams.get('wa_otp');
+      if (whatsappParam) {
+        setShowTwilioWhatsAppModal(true);
+      }
+    }
+
+    const handleOpenFirebasePhone = () => setShowFirebasePhoneModal(true);
+    const handleOpenWhatsAppOtp = () => setShowTwilioWhatsAppModal(true);
+
+    window.addEventListener('open-firebase-phone-auth', handleOpenFirebasePhone);
+    window.addEventListener('open-firebase-phone-modal', handleOpenFirebasePhone);
+    window.addEventListener('open-whatsapp-otp', handleOpenWhatsAppOtp);
+    window.addEventListener('open-twilio-whatsapp-modal', handleOpenWhatsAppOtp);
+
+    return () => {
+      window.removeEventListener('open-staff-modal', handleOpenStaffEvent);
+      window.removeEventListener('open-staff-registration', handleOpenStaffReg);
+      window.removeEventListener('open-staff-id-card', handleOpenStaffCard);
+      window.removeEventListener('open-firebase-phone-auth', handleOpenFirebasePhone);
+      window.removeEventListener('open-firebase-phone-modal', handleOpenFirebasePhone);
+      window.removeEventListener('open-whatsapp-otp', handleOpenWhatsAppOtp);
+      window.removeEventListener('open-twilio-whatsapp-modal', handleOpenWhatsAppOtp);
+    };
+  }, []);
+
+  const handleDonationSuccess = (newDonation: DonationRecord) => {
+    setShowDonateModal(false);
+    setSelectedDonation(newDonation);
+  };
+
+  const handleScanResult = (resultId: string) => {
+    setVerifyRouteId(resultId);
+  };
+
+  const handleOpenFormTab = (tab: 'appreciation' | 'volunteer' | 'festival' | 'verification' | 'donation') => {
+    setActiveFormTab(tab);
+    setTimeout(() => {
+      const element = document.getElementById('official-forms');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
+  // If user requested a direct verification page
+  if (verifyRouteId) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] text-gray-900 flex flex-col font-sans">
+        <VerifyPage
+          initialCertId={verifyRouteId}
+          onBack={() => setVerifyRouteId(null)}
+        />
+        <Footer />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#FFFDF9] text-gray-900 flex flex-col font-sans selection:bg-amber-200 relative">
+      {/* PWA Notification banner */}
+      <PwaInstallBanner />
+
+      {/* Dynamic Home Notice Board Banner from Firestore (Tab 2) */}
+      <HomeNoticeBanner onOpenAdmin={() => setShowAdminLoginModal(true)} />
+
+      {/* Header Navigation */}
+      <Navbar
+        onOpenDonate={() => setShowDonateModal(true)}
+        onOpenReport={() => setShowReportModal(true)}
+        onOpenAdmin={() => setShowAdminLoginModal(true)}
+        onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
+        onOpenStaff={(tab) => {
+          setStaffModalTab(tab || 'options');
+          setShowStaffModal(true);
+        }}
+      />
+
+      {/* Main Content Sections */}
+      <main className="flex-1">
+        <HeroSection
+          onOpenDonate={() => handleOpenFormTab('donation')}
+          onOpenVolunteerPortal={() => handleOpenFormTab('volunteer')}
+          onOpenAdmin={() => setShowAdminLoginModal(true)}
+          onOpenStaff={(tab) => {
+            setStaffModalTab(tab || 'options');
+            setShowStaffModal(true);
+          }}
+        />
+
+        {/* Action Hub Strip */}
+        <ActionCenter
+          onOpenQuickDonate={() => setShowQuickDonateModal(true)}
+          onOpenDownloadCertificates={() => setShowDownloadCertificatesModal(true)}
+          onOpenDonate={() => handleOpenFormTab('donation')}
+          onOpenVolunteerCert={() => handleOpenFormTab('volunteer')}
+          onOpenDonationCert={() => handleOpenFormTab('donation')}
+          onOpenIdCard={() => handleOpenFormTab('volunteer')}
+          onOpenTaskCert={() => handleOpenFormTab('appreciation')}
+          onOpenAnnualReport={() => setShowAnnualReportCardModal(true)}
+          onOpenFestivalPortal={() => handleOpenFormTab('festival')}
+          onOpenQrScanner={() => handleOpenFormTab('verification')}
+          onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
+          onOpenStaff={(tab) => {
+            setStaffModalTab(tab || 'options');
+            setShowStaffModal(true);
+          }}
+        />
+
+        {/* Home Page Photo Slider Showcase (Automatic Smooth Slideshow) */}
+        <section id="home-gallery-showcase" className="py-10 bg-gradient-to-b from-amber-50/70 via-white to-amber-50/40 border-y border-amber-200/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#8B0000] text-white text-xs font-black uppercase tracking-wider mb-2 shadow-xs">
+                  <span>📸 जमीनी सेवा गतिविधियां (Ground Action Live Slides)</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 font-serif">
+                  ग़ाज़ीपुर सेवा अभियानों की लाइव फ़ोटो गैलरी
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-600 font-medium mt-1">
+                  निःशुल्क शिक्षा, अन्नपूर्णा भोजन, चिकित्सा शिविर एवं पर्यावरण संरक्षण की स्वचालित झलकियां
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAdminLoginModal(true)}
+                className="text-xs font-bold text-[#8B0000] hover:text-[#5a0000] underline self-start sm:self-auto cursor-pointer flex items-center gap-1"
+                title="एडमिन पोर्टल से फ़ोटो जोड़ें / बदलें"
+              >
+                <span>एडमिन लॉगिन से फ़ोटो बदलें / जोड़ें</span>
+                <span>→</span>
+              </button>
+            </div>
+
+            {/* Main Interactive Clear Slideshow (Lazy Loaded) */}
+            <React.Suspense fallback={<CampaignGallerySliderSkeleton />}>
+              <CampaignGallerySlider onOpenAdmin={() => setShowAdminLoginModal(true)} />
+            </React.Suspense>
+          </div>
+        </section>
+
+        {/* Live Counters */}
+        <LiveImpactDashboard />
+
+        {/* 5 Professional Forms Master Portal (Appreciation, Volunteer, Festival, Verification, Donation) */}
+        <ProfessionalFormsPortal
+          selectedTab={activeFormTab}
+          onTabChange={setActiveFormTab}
+          onOpenAppreciationCert={(task) => setSelectedTask(task)}
+          onOpenVolunteerCard={(vol) => setSelectedIdCardVol(vol)}
+          onOpenVolunteerCert={(vol) => setSelectedVolunteer(vol)}
+          onOpenFestivalCert={(greeting) => setSelectedFestivalGreeting(greeting)}
+          onOpenDonationCert={(donation) => setSelectedDonation(donation)}
+          onOpenUpiDonate={() => setShowDonateModal(true)}
+          onOpenVerifyModal={(certId) => setVerifyRouteId(certId)}
+          onOpenStaff={(tab) => {
+            setStaffModalTab(tab || 'options');
+            setShowStaffModal(true);
+          }}
+        />
+
+        {/* Festival Greetings & Registration Tab Portal */}
+        <FestivalGreetingsPortal
+          onOpenCertificate={(greeting) => setSelectedFestivalGreeting(greeting)}
+        />
+
+        {/* Motivational Quotes & Photo Poster Studio (WhatsApp & Facebook) */}
+        <MotivationalQuotesPosterStudio />
+
+        {/* Four Core Pillars */}
+        <FourPillars />
+
+        {/* Interactive Ghazipur Map */}
+        <GhazipurMap />
+
+        {/* Volunteer Task Portal & Live Seva Assignment */}
+        <VolunteerTaskPortal
+          onSelectVolunteerCertificate={(vol) => setSelectedVolunteer(vol)}
+          onSelectTaskCertificate={(task) => setSelectedTask(task)}
+          onSelectIdCard={(vol) => setSelectedIdCardVol(vol)}
+        />
+
+        {/* Recent Field Events & Ground News (Lazy Loaded) */}
+        <React.Suspense fallback={<RecentEventsCarouselSkeleton />}>
+          <RecentEventsCarousel onOpenAdmin={() => setShowAdminLoginModal(true)} />
+        </React.Suspense>
+
+        {/* Documentary Video & Rural Work Photo Showcase */}
+        <VideoShowcase onOpenAdmin={() => setShowAdminLoginModal(true)} />
+
+        {/* Donors Wall of Fame */}
+        <DonationWallOfFame
+          onOpenDonate={() => setShowDonateModal(true)}
+          onOpenDonationCert={() => setShowMyDonationsModal(true)}
+          onSelectDonationForCert={(don) => setSelectedDonation(don)}
+        />
+
+        {/* Volunteer Leaderboard */}
+        <VolunteerLeaderboard
+          onOpenIdCard={() => {
+            setActiveFormTab('volunteer');
+            document.getElementById('official-forms')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onOpenVolunteerCert={() => setSelectedVolunteer(INITIAL_VOLUNTEERS[0])}
+        />
+
+        {/* Voices from Ground */}
+        <VolunteerVoices />
+
+        {/* Official Certificate Verification Portal */}
+        <CertificateVerificationPortal />
+
+        {/* Ground Impact Stories */}
+        <ImpactStories />
+      </main>
+
+      {/* Footer */}
+      <Footer onOpenAdmin={() => setShowAdminLoginModal(true)} />
+
+      {/* Interactive AI Chatbot */}
+      <JyotiBot />
+
+      {/* Floating Share Toolbar */}
+      <FloatingShareToolbar
+        onOpenQr={() => setShowQrScannerModal(true)}
+        onOpenQuickDonate={() => setShowQuickDonateModal(true)}
+      />
+
+      {/* Network Status Offline Alert */}
+      <NetworkStatusToast />
+
+      {/* -------------------- ALL MODALS (SUSPENSE & ERROR BOUNDARY PROTECTED) -------------------- */}
+      <ErrorBoundary fallbackTitle="मॉडल लोडिंग में समस्या (Modal Loading Issue)">
+        {/* Modals & Overlays */}
+        {/* 0. Quick Donate QR Code Overlay for Rapid Mobile Payments */}
+          {showQuickDonateModal && (
+            <QuickDonateOverlay
+              isOpen={showQuickDonateModal}
+              onClose={() => setShowQuickDonateModal(false)}
+              onDonationSuccess={handleDonationSuccess}
+              onOpenFullForm={() => {
+                setShowQuickDonateModal(false);
+                handleOpenFormTab('donation');
+              }}
+              onOpenAdminSettings={() => {
+                setShowQuickDonateModal(false);
+                setShowAdminLoginModal(true);
+              }}
+            />
+          )}
+          {/* 1. Volunteer Appreciation Certificate Modal */}
+          {selectedVolunteer && (
+            <VolunteerCertificateModal
+              volunteer={selectedVolunteer}
+              onClose={() => setSelectedVolunteer(null)}
+            />
+          )}
+
+          {/* 2. Swayam Sewak Official ID Card Modal */}
+          {selectedIdCardVol && (
+            <SwayamSewakCardModal
+              volunteer={selectedIdCardVol}
+              onClose={() => setSelectedIdCardVol(null)}
+              onOpenRegistrationForm={() => {
+                setActiveFormTab('volunteer');
+                document.getElementById('official-forms')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
+          )}
+
+          {/* 3. Task Appreciation Certificate Modal */}
+          {selectedTask && (
+            <TaskAppreciationCardModal
+              task={selectedTask}
+              onClose={() => setSelectedTask(null)}
+            />
+          )}
+
+          {/* 4. Official Donation Receipt A4 PDF Modal */}
+          {selectedDonation && (
+            <Donation80GReceiptView
+              donation={selectedDonation}
+              onClose={() => setSelectedDonation(null)}
+            />
+          )}
+
+          {/* 4.5. Festival Greeting & Blessing Certificate Modal */}
+          {selectedFestivalGreeting && (
+            <FestivalCertificateModal
+              greeting={selectedFestivalGreeting}
+              onClose={() => setSelectedFestivalGreeting(null)}
+            />
+          )}
+
+          {/* 5. Online Donation Portal */}
+          {showDonateModal && (
+            <Donation80GPortal
+              isOpen={showDonateModal}
+              onClose={() => setShowDonateModal(false)}
+              onDonationSuccess={handleDonationSuccess}
+              onOpenDonorDashboard={() => {
+                setShowDonateModal(false);
+                setShowMyDonationsModal(true);
+              }}
+            />
+          )}
+
+          {/* 6. Annual Summary Report Modal */}
+          {showReportModal && (
+            <AnnualSummaryReportModal
+              onClose={() => setShowReportModal(false)}
+            />
+          )}
+
+          {/* 7. Annual Report Card Modal */}
+          {showAnnualReportCardModal && (
+            <AnnualReportCardModal
+              isOpen={showAnnualReportCardModal}
+              onClose={() => setShowAnnualReportCardModal(false)}
+            />
+          )}
+
+          {/* 8. My Donations Explorer & Receipt Retrieval Modal */}
+          {showMyDonationsModal && (
+            <DonorDashboardModal
+              isOpen={showMyDonationsModal}
+              onClose={() => setShowMyDonationsModal(false)}
+              onSelectReceipt={(don) => {
+                setShowMyDonationsModal(false);
+                setSelectedDonation(don);
+              }}
+            />
+          )}
+
+          {/* 9. Super Admin & Admin Control Master Portal */}
+          {showAdminLoginModal && (
+            <SuperAdminPortal
+              isOpen={showAdminLoginModal}
+              onClose={() => setShowAdminLoginModal(false)}
+              onOpenVerificationPortal={(certId) => {
+                setShowAdminLoginModal(false);
+                setVerifyRouteId(certId);
+              }}
+            />
+          )}
+
+          {/* 10. QR Camera Scanner Modal */}
+          {showQrScannerModal && (
+            <CameraQrScannerModal
+              isOpen={showQrScannerModal}
+              onClose={() => setShowQrScannerModal(false)}
+              onScanResult={handleScanResult}
+            />
+          )}
+
+          {/* 11. OTP Verification Modal */}
+          {showOtpModal && (
+            <OtpVerificationModal
+              isOpen={showOtpModal}
+              onClose={() => setShowOtpModal(false)}
+              onSuccess={() => {}}
+            />
+          )}
+
+          {/* 11b. Official Google Firebase Phone Authentication Modal */}
+          {showFirebasePhoneModal && (
+            <FirebasePhoneAuthModal
+              isOpen={showFirebasePhoneModal}
+              onClose={() => setShowFirebasePhoneModal(false)}
+              redirectToSuccessPage={true}
+              onVerificationSuccess={(res) => {
+                console.info('Firebase Phone Verified successfully:', res);
+              }}
+            />
+          )}
+
+          {/* 11c. Twilio WhatsApp OTP Authentication Modal */}
+          {showTwilioWhatsAppModal && (
+            <TwilioWhatsAppOtpModal
+              isOpen={showTwilioWhatsAppModal}
+              onClose={() => setShowTwilioWhatsAppModal(false)}
+              websiteName="Jeevan Jyoti Foundation Ghazipur"
+              onVerificationSuccess={(res) => {
+                console.info('Twilio WhatsApp OTP Verified successfully:', res);
+              }}
+            />
+          )}
+
+          {/* 12. Citizen Certificate & ID Card Download Center with OTP Verification */}
+          {showDownloadCertificatesModal && (
+            <DownloadCertificatesModal
+              isOpen={showDownloadCertificatesModal}
+              onClose={() => setShowDownloadCertificatesModal(false)}
+              onPreviewVolunteerCert={(vol) => {
+                setShowDownloadCertificatesModal(false);
+                setSelectedVolunteer(vol);
+              }}
+              onPreviewIdCard={(vol) => {
+                setShowDownloadCertificatesModal(false);
+                setSelectedIdCardVol(vol);
+              }}
+              onPreviewDonationCert={(don) => {
+                setShowDownloadCertificatesModal(false);
+                setSelectedDonation(don);
+              }}
+              onPreviewTaskCert={(task) => {
+                setShowDownloadCertificatesModal(false);
+                setSelectedTask(task);
+              }}
+              onPreviewFestivalCert={(fest) => {
+                setShowDownloadCertificatesModal(false);
+                setSelectedFestivalGreeting(fest);
+              }}
+              initialPhone={downloadCertInitialPhone}
+              initialCertId={downloadCertInitialId}
+            />
+          )}
+
+          {/* 13. Google Drive Official Document Hub Modal */}
+          {showGoogleDriveModal && (
+            <GoogleDriveHubModal
+              isOpen={showGoogleDriveModal}
+              onClose={() => setShowGoogleDriveModal(false)}
+            />
+          )}
+
+          {/* 14. Official Staff Portal (1. Staff Registration Form & 2. Staff I-Card Download) */}
+          {showStaffModal && (
+            <StaffHubModal
+              initialTab={staffModalTab}
+              initialStaffId={urlStaffId}
+              onClose={() => {
+                setShowStaffModal(false);
+                setUrlStaffId(null);
+              }}
+            />
+          )}
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+export default App;
