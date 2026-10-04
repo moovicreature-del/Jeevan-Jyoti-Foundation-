@@ -2187,6 +2187,10 @@ app.get('*', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Jeevan Jyoti Foundation server running on port ${PORT}`);
-});
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Jeevan Jyoti Foundation server running on port ${PORT}`);
+  });
+}
+
+export default app;
