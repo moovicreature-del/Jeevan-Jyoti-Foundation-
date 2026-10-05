@@ -60,6 +60,7 @@ if (typeof devUploadCleanupInterval?.unref === 'function') {
 
 // In-memory OTP storage for Vite dev mode
 const devOtpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+let devAppThumbnailUrl: string = '';
 
 // Helper to mask phone numbers in server console logs (e.g., +91XXXXXX1234) for privacy
 function maskPhone(phone: string): string {
@@ -214,6 +215,43 @@ function apiDevServerPlugin(): Plugin {
           return res.end('मीडिया फ़ाइल उपलब्ध नहीं है।');
         }
 
+        // Direct dynamic manifest handler for PWA app download
+        if (req.url === '/manifest.json' || req.url?.startsWith('/manifest.json?') || req.url === '/api/manifest.json') {
+          const resolvedIcon = (devAppThumbnailUrl && devAppThumbnailUrl.trim() && devAppThumbnailUrl !== '/pwa-icon-512.png')
+            ? devAppThumbnailUrl.trim()
+            : '/pwa-icon-512.png';
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          return res.end(JSON.stringify({
+            id: '/',
+            name: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation',
+            short_name: 'Jeevan Jyoti',
+            description: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर — बाल शिक्षा, स्वास्थ्य, अन्नपूर्णा भोजन सेवा एवं ऑनलाइन प्रमाण पत्र सत्यापन पोर्टल।',
+            start_url: '/',
+            scope: '/',
+            display: 'standalone',
+            display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+            background_color: '#FFFDF9',
+            theme_color: '#8B0000',
+            orientation: 'portrait-primary',
+            lang: 'hi',
+            dir: 'ltr',
+            categories: ['social', 'education', 'lifestyle', 'utilities'],
+            icons: [
+              { src: resolvedIcon, sizes: '192x192', type: 'image/png', purpose: 'any' },
+              { src: resolvedIcon, sizes: '512x512', type: 'image/png', purpose: 'any' },
+              { src: resolvedIcon, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+              { src: resolvedIcon, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            ],
+            shortcuts: [
+              { name: 'सत्यापन पोर्टल (Verify Certificate)', short_name: 'सत्यापन', url: '/#verification', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] },
+              { name: 'सहयोग / दान करें (Donate 80G)', short_name: 'दान करें', url: '/#donation', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] },
+              { name: 'स्वयंसेवक कार्ड (Volunteer Card)', short_name: 'स्वयंसेवक', url: '/#volunteers', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] }
+            ]
+          }));
+        }
+
         if (!req.url.startsWith('/api/')) {
           return next();
         }
@@ -241,6 +279,16 @@ function apiDevServerPlugin(): Plugin {
 
         if (req.url === '/api/health') {
           return sendJson(200, { status: 'ok', time: new Date().toISOString() });
+        }
+
+        // Dynamic app thumbnail sync endpoint
+        if (req.url?.startsWith('/api/app-thumbnail')) {
+          if (req.method === 'POST') {
+            const body = await getBody();
+            devAppThumbnailUrl = typeof body?.thumbnailUrl === 'string' ? body.thumbnailUrl.trim() : '';
+            return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
+          }
+          return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
         }
 
         // 1. POST /api/send-otp-sms

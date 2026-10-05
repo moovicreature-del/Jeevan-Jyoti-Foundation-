@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/manifest.json",
+      "destination": "/api"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     },

@@ -147,6 +147,110 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ============================================================================
+// DYNAMIC APP THUMBNAIL & PWA MANIFEST ENGINE
+// जब एडमिन थंबनेल अपलोड करे, तो ऐप डाउनलोड / PWA इंस्टॉलेशन में नया लोगो दिखे
+// ============================================================================
+let serverAppThumbnailUrl: string = '';
+
+app.get('/api/app-thumbnail', (_req, res) => {
+  res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
+});
+
+app.post('/api/app-thumbnail', (req, res) => {
+  const { thumbnailUrl } = req.body || {};
+  serverAppThumbnailUrl = typeof thumbnailUrl === 'string' ? thumbnailUrl.trim() : '';
+  res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
+});
+
+// Dynamic Web App Manifest - returns manifest with latest custom thumbnail
+app.get(['/manifest.json', '/api/manifest.json'], (req, res) => {
+  const queryThumb = req.query.thumb as string | undefined;
+  const rawThumb = queryThumb || serverAppThumbnailUrl;
+  const resolvedIcon = (rawThumb && rawThumb.trim() && rawThumb.trim() !== '/pwa-icon-512.png')
+    ? rawThumb.trim()
+    : '/pwa-icon-512.png';
+
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+  res.json({
+    id: '/',
+    name: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation',
+    short_name: 'Jeevan Jyoti',
+    description: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर — बाल शिक्षा, स्वास्थ्य, अन्नपूर्णा भोजन सेवा एवं ऑनलाइन प्रमाण पत्र सत्यापन पोर्टल।',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+    background_color: '#FFFDF9',
+    theme_color: '#8B0000',
+    orientation: 'portrait-primary',
+    lang: 'hi',
+    dir: 'ltr',
+    categories: ['social', 'education', 'lifestyle', 'utilities'],
+    icons: [
+      {
+        src: resolvedIcon,
+        type: 'image/png',
+        sizes: '192x192',
+        purpose: 'any'
+      },
+      {
+        src: resolvedIcon,
+        type: 'image/png',
+        sizes: '512x512',
+        purpose: 'any'
+      },
+      {
+        src: resolvedIcon,
+        type: 'image/png',
+        sizes: '192x192',
+        purpose: 'maskable'
+      },
+      {
+        src: resolvedIcon,
+        type: 'image/png',
+        sizes: '512x512',
+        purpose: 'maskable'
+      }
+    ],
+    shortcuts: [
+      {
+        name: 'सत्यापन पोर्टल (Verify Certificate)',
+        short_name: 'सत्यापन',
+        description: 'ऑनलाइन प्रमाण पत्र एवं पहचान पत्र सत्यापन करें',
+        url: '/#verification',
+        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+      },
+      {
+        name: 'सहयोग / दान करें (Donate 80G)',
+        short_name: 'दान करें',
+        description: '80G कर छूट रसीद के साथ सुरक्षित दान करें',
+        url: '/#donation',
+        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+      },
+      {
+        name: 'स्वयंसेवक कार्ड (Volunteer Card)',
+        short_name: 'स्वयंसेवक',
+        description: 'स्वयंसेवक डिजिटल पहचान पत्र प्राप्त करें',
+        url: '/#volunteers',
+        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+      }
+    ]
+  });
+});
+
+// Dynamic PWA icon redirection: if custom thumbnail exists, redirect default icon requests to custom thumbnail
+app.get(['/pwa-icon-512.png', '/pwa-icon-192.png', '/apple-touch-icon.png'], (_req, res, next) => {
+  if (serverAppThumbnailUrl && serverAppThumbnailUrl.trim() && serverAppThumbnailUrl !== '/pwa-icon-512.png') {
+    if (serverAppThumbnailUrl.startsWith('http://') || serverAppThumbnailUrl.startsWith('https://')) {
+      return res.redirect(302, serverAppThumbnailUrl);
+    }
+  }
+  next();
+});
+
+// ============================================================================
 // CHUNKED MEDIA UPLOAD ENGINE (Supports Videos, HD Photos & Banners)
 // जीवन ज्योति फाउंडेशन - खंडित मीडिया अपलोड इंजन (100% पूर्णता गारंटी)
 // ============================================================================

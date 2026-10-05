@@ -1,8 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Smartphone, Sparkles, Share, CheckCircle2, ShieldCheck, ArrowRight, ExternalLink, Globe, Monitor, HelpCircle } from 'lucide-react';
-import { BrandLogo } from './common/BrandLogo';
+import { useHomeContent } from '../context/HomeContentContext';
 
 export const PwaInstallBanner: React.FC = () => {
+  const homeContext = useHomeContent();
+  const content = homeContext?.content;
+
+  const [activeThumbnail, setActiveThumbnail] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const isDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+        if (!isDeleted) {
+          const localThumb = localStorage.getItem('jjf_custom_thumbnail');
+          if (localThumb && localThumb !== '/pwa-icon-512.png') return localThumb;
+        }
+      } catch {}
+    }
+    return content?.appThumbnailUrl || content?.appLogoUrl || '/pwa-icon-512.png';
+  });
+
+  useEffect(() => {
+    const isDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+    if (isDeleted) {
+      setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
+    } else if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
+      setActiveThumbnail(content.appThumbnailUrl);
+    } else if (content?.appLogoUrl) {
+      setActiveThumbnail(content.appLogoUrl);
+    } else {
+      setActiveThumbnail('/pwa-icon-512.png');
+    }
+  }, [content?.appThumbnailUrl, content?.appLogoUrl]);
+
+  useEffect(() => {
+    const handleThumbChange = (e: CustomEvent<string>) => {
+      const newThumb = typeof e.detail === 'string' ? e.detail : '';
+      if (newThumb && newThumb !== '/pwa-icon-512.png') {
+        setActiveThumbnail(newThumb);
+      } else {
+        setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
+      }
+    };
+    window.addEventListener('jjf-thumbnail-changed' as any, handleThumbChange);
+    return () => window.removeEventListener('jjf-thumbnail-changed' as any, handleThumbChange);
+  }, [content?.appLogoUrl]);
+
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showBanner, setShowBanner] = useState(true);
   const [isIos, setIsIos] = useState(false);
@@ -116,8 +158,15 @@ export const PwaInstallBanner: React.FC = () => {
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
             {/* Left: Organization icon & text */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-white/10 border border-amber-300/60 p-0.5 flex items-center justify-center shrink-0 shadow-xs">
-                <BrandLogo size={26} className="drop-shadow-xs" />
+              <div className="w-8 h-8 rounded-lg bg-white/20 border border-amber-300/80 p-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                <img
+                  src={activeThumbnail}
+                  alt="App Icon"
+                  className="w-full h-full object-cover rounded-md"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/pwa-icon-512.png';
+                  }}
+                />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-amber-300 truncate">
@@ -166,16 +215,49 @@ export const PwaInstallBanner: React.FC = () => {
             </button>
 
             {/* Header */}
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 border-2 border-amber-400 flex items-center justify-center mb-2.5 shadow-sm">
-                <BrandLogo size={42} />
+            <div className="text-center mb-3">
+              <div className="relative w-16 h-16 mx-auto mb-2">
+                <img
+                  src={activeThumbnail}
+                  alt="Jeevan Jyoti Foundation App Icon"
+                  className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400 shadow-md bg-white"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/pwa-icon-512.png';
+                  }}
+                />
+                <div className="absolute -bottom-1 -right-1 bg-emerald-600 text-white p-0.5 rounded-full border-2 border-white shadow-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
               </div>
               <h3 className="text-base sm:text-lg font-black text-[#8B0000] font-['Cinzel',serif]">
                 JEEVAN JYOTI FOUNDATION APP
               </h3>
               <p className="text-xs text-gray-700 font-bold mt-0.5">
-                आधिकारिक मोबाइल व डेस्कटॉप ऐप इंस्टॉलेशन गाइड
+                आधिकारिक मोबाइल व डेस्कटॉप ऐप इंस्टॉलेशन
               </p>
+            </div>
+
+            {/* Live App Icon Confirmation Box */}
+            <div className="mb-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-2.5 flex items-center gap-3">
+              <img
+                src={activeThumbnail}
+                alt="Active App Icon"
+                className="w-11 h-11 rounded-xl object-cover border border-amber-300 shadow-xs bg-white shrink-0"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/pwa-icon-512.png';
+                }}
+              />
+              <div className="min-w-0 text-left">
+                <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <span>ऐप थंबनेल लोगो</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">
+                    लाइव सक्रिय
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 truncate">
+                  इंस्टॉल होने के बाद यह थंबनेल लोगो आपके होम-स्क्रीन पर दिखाई देगा।
+                </p>
+              </div>
             </div>
 
             {/* If in iframe banner warning / recommendation */}

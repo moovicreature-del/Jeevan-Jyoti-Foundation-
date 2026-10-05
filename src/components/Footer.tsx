@@ -114,7 +114,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin }) => {
                 <button
                   onClick={() => {
                     sessionStorage.removeItem('jjf_pwa_banner_dismissed');
-                    window.location.reload();
+                    window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
                   }}
                   className="hover:text-amber-300 text-yellow-400 font-bold transition-colors flex items-center gap-1.5 cursor-pointer text-left"
                 >

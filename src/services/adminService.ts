@@ -589,12 +589,20 @@ export async function resetAppLogo(
 }
 
 /**
- * वेबसाइट एवं ऐप के थंबनेल लोगो को ब्राउज़र के मेटा टैग्स, OpenGraph, Twitter Card व Favicon में लाइव लागू करें
+ * वेबसाइट एवं ऐप के थंबनेल लोगो को ब्राउज़र के मेटा टैग्स, OpenGraph, Twitter Card, Favicon एवं PWA Manifest में लाइव लागू करें
  */
 export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  const resolvedThumb = (thumbnailUrl && thumbnailUrl.trim() && thumbnailUrl.trim() !== '/pwa-icon-512.png')
+  const isPermanentlyDeleted = (() => {
+    try {
+      return localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+
+  const resolvedThumb = (!isPermanentlyDeleted && thumbnailUrl && thumbnailUrl.trim() && thumbnailUrl.trim() !== '/pwa-icon-512.png')
     ? thumbnailUrl.trim()
     : '/pwa-icon-512.png';
 
@@ -617,7 +625,7 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
     }
     twitterImage.setAttribute('content', resolvedThumb);
 
-    // 3. Update Apple Touch Icon (iOS Home Screen Shortcut)
+    // 3. Update Apple Touch Icon (iOS Home Screen Shortcut) - all sizes
     const appleIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
     if (appleIcons.length > 0) {
       appleIcons.forEach((el) => el.setAttribute('href', resolvedThumb));
@@ -628,13 +636,117 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       document.head.appendChild(appleLink);
     }
 
-    // 4. Update Favicon if custom thumbnail supplied
-    if (thumbnailUrl.trim() && thumbnailUrl.trim() !== '/pwa-icon-512.png') {
-      const favicons = document.querySelectorAll('link[rel="icon"]');
-      if (favicons.length > 0) {
-        favicons.forEach((el) => el.setAttribute('href', resolvedThumb));
-      }
+    // 4. Update Favicon (link[rel="icon"])
+    const favicons = document.querySelectorAll('link[rel="icon"]');
+    if (favicons.length > 0) {
+      favicons.forEach((el) => el.setAttribute('href', resolvedThumb));
     }
+
+    // 5. Update Web App Manifest dynamically so PWA download/install uses the new thumbnail
+    const dynamicManifest = {
+      id: '/',
+      name: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation',
+      short_name: 'Jeevan Jyoti',
+      description: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर — बाल शिक्षा, स्वास्थ्य, अन्नपूर्णा भोजन सेवा एवं ऑनलाइन प्रमाण पत्र सत्यापन पोर्टल।',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+      background_color: '#FFFDF9',
+      theme_color: '#8B0000',
+      orientation: 'portrait-primary',
+      lang: 'hi',
+      dir: 'ltr',
+      categories: ['social', 'education', 'lifestyle', 'utilities'],
+      icons: [
+        {
+          src: resolvedThumb,
+          type: 'image/png',
+          sizes: '192x192',
+          purpose: 'any'
+        },
+        {
+          src: resolvedThumb,
+          type: 'image/png',
+          sizes: '512x512',
+          purpose: 'any'
+        },
+        {
+          src: resolvedThumb,
+          type: 'image/png',
+          sizes: '192x192',
+          purpose: 'maskable'
+        },
+        {
+          src: resolvedThumb,
+          type: 'image/png',
+          sizes: '512x512',
+          purpose: 'maskable'
+        },
+        {
+          src: resolvedThumb,
+          type: 'image/png',
+          sizes: 'any',
+          purpose: 'any'
+        }
+      ],
+      shortcuts: [
+        {
+          name: 'सत्यापन पोर्टल (Verify Certificate)',
+          short_name: 'सत्यापन',
+          description: 'ऑनलाइन प्रमाण पत्र एवं पहचान पत्र सत्यापन करें',
+          url: '/#verification',
+          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
+        },
+        {
+          name: 'सहयोग / दान करें (Donate 80G)',
+          short_name: 'दान करें',
+          description: '80G कर छूट रसीद के साथ सुरक्षित दान करें',
+          url: '/#donation',
+          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
+        },
+        {
+          name: 'स्वयंसेवक कार्ड (Volunteer Card)',
+          short_name: 'स्वयंसेवक',
+          description: 'स्वयंसेवक डिजिटल पहचान पत्र प्राप्त करें',
+          url: '/#volunteers',
+          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
+        }
+      ]
+    };
+
+    try {
+      const manifestBlob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/manifest+json' });
+      const manifestBlobUrl = URL.createObjectURL(manifestBlob);
+      let manifestEl = document.querySelector('link[rel="manifest"]');
+      if (manifestEl) {
+        manifestEl.setAttribute('href', manifestBlobUrl);
+      }
+    } catch (e) {
+      console.debug('Dynamic manifest blob update notice:', e);
+    }
+
+    // 6. Notify active Service Worker controller to update cached app icons
+    try {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'UPDATE_APP_THUMBNAIL',
+          thumbnailUrl: resolvedThumb
+        });
+      }
+    } catch (e) {
+      console.debug('Service Worker thumbnail sync notice:', e);
+    }
+
+    // 7. Sync with server-side endpoint in background
+    try {
+      fetch('/api/app-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thumbnailUrl: resolvedThumb })
+      }).catch(() => {});
+    } catch (e) {}
+
   } catch (e) {
     console.warn('Error applying dynamic app thumbnail:', e);
   }

@@ -2,7 +2,7 @@
 // JEEVAN JYOTI FOUNDATION - SERVICE WORKER (OFFLINE CERTIFICATES & ASSET CACHE)
 // ============================================================================
 
-const CACHE_NAME = 'jeevan-jyoti-v4-pwa';
+const CACHE_NAME = 'jeevan-jyoti-v5-pwa';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -19,6 +19,30 @@ const ASSETS_TO_CACHE = [
   '/signature-shailesh-overlay.svg',
   '/signature-shailesh-royalblue.svg'
 ];
+
+let dynamicCustomThumbnail = '';
+
+// Message Listener: Receive live thumbnail updates from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'UPDATE_APP_THUMBNAIL') {
+    const newThumb = event.data.thumbnailUrl;
+    dynamicCustomThumbnail = (typeof newThumb === 'string') ? newThumb.trim() : '';
+    if (dynamicCustomThumbnail && dynamicCustomThumbnail !== '/pwa-icon-512.png') {
+      fetch(dynamicCustomThumbnail, { mode: 'cors' })
+        .then((resp) => {
+          if (resp && resp.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(dynamicCustomThumbnail, resp.clone());
+              cache.put('/pwa-icon-512.png', resp.clone());
+              cache.put('/pwa-icon-192.png', resp.clone());
+              cache.put('/apple-touch-icon.png', resp.clone());
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }
+});
 
 // Install Event: Pre-cache core shell assets
 self.addEventListener('install', (event) => {
@@ -61,6 +85,38 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/node_modules/') ||
     url.searchParams.has('import')
   ) {
+    return;
+  }
+
+  // For Web App Manifest, always use Network-First so PWA installs get latest icons
+  if (url.pathname === '/manifest.json') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // If a custom thumbnail is active and default PWA icons are requested, serve the custom thumbnail
+  if (
+    dynamicCustomThumbnail &&
+    (url.pathname === '/pwa-icon-512.png' ||
+      url.pathname === '/pwa-icon-192.png' ||
+      url.pathname === '/apple-touch-icon.png')
+  ) {
+    event.respondWith(
+      caches.match(dynamicCustomThumbnail).then((cached) => {
+        if (cached) return cached;
+        return fetch(dynamicCustomThumbnail, { mode: 'cors' }).catch(() => caches.match(event.request));
+      })
+    );
     return;
   }
 

@@ -7,7 +7,40 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" id="app-pwa-manifest" />
+    <script>
+      (function() {
+        try {
+          var isDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+          var customThumb = !isDeleted ? localStorage.getItem('jjf_custom_thumbnail') : null;
+          if (!customThumb && !isDeleted) {
+            var raw = localStorage.getItem('jjf_home_content');
+            if (raw) {
+              var parsed = JSON.parse(raw);
+              if (parsed && parsed.appThumbnailUrl && parsed.appThumbnailUrl !== '/pwa-icon-512.png') {
+                customThumb = parsed.appThumbnailUrl;
+              }
+            }
+          }
+          if (customThumb && customThumb.trim()) {
+            var t = customThumb.trim();
+            var icons = document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]');
+            icons.forEach(function(el) { el.setAttribute('href', t); });
+            var og = document.querySelector('meta[property="og:image"]');
+            if (og) og.setAttribute('content', t);
+            var tw = document.querySelector('meta[name="twitter:image"]');
+            if (tw) tw.setAttribute('content', t);
+            try {
+              fetch('/api/app-thumbnail', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ thumbnailUrl: t })
+              }).catch(function() {});
+            } catch(e) {}
+          }
+        } catch(e) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation</title>
     <meta name="description" content="Jeevan Jyoti Foundation Ghazipur — Official NGO platform for Education, Healthcare, Food Distribution & Volunteerism." />
