@@ -121,9 +121,10 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   }, [activeLogoUrl]);
 
   const finalOpacity = watermark ? (opacity ?? 0.12) : (opacity ?? 1);
+  const effectiveLogoUrl = (!isPermanentlyDeleted && activeLogoUrl) ? activeLogoUrl : '/pwa-icon-512.png';
 
-  // If a custom logo is active and image hasn't errored, render custom uploaded logo
-  if (activeLogoUrl && !imgFailed && !forceVector) {
+  // Render official logo (custom or official default emblem)
+  if (effectiveLogoUrl && !imgFailed && !forceVector) {
     const dimensionStyle: React.CSSProperties = typeof resolvedSize === 'number' 
       ? { width: `${resolvedSize}px`, height: `${resolvedSize}px` } 
       : { width: resolvedSize, height: resolvedSize };
@@ -131,7 +132,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     return (
       <img
         id={id}
-        src={getOptimizedImageUrl(activeLogoUrl, { width: typeof resolvedSize === 'number' ? resolvedSize * 2 : 256, quality: 80 })}
+        src={getOptimizedImageUrl(effectiveLogoUrl, { width: typeof resolvedSize === 'number' ? resolvedSize * 2 : 256, quality: 80 })}
         alt={alt}
         className={`object-contain rounded-full inline-block shrink-0 ${className} ${watermark ? 'pointer-events-none select-none' : ''}`}
         style={{
@@ -149,7 +150,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     );
   }
 
-  // When no custom logo is uploaded, or when logo has been permanently deleted, DO NOT RENDER ANY LOGO
   return null;
 };
 
