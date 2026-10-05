@@ -1,4 +1,5 @@
 import { FestivalItem, FestivalGreetingRecord } from '../types';
+export type { FestivalItem, FestivalGreetingRecord };
 import { getFestivalForYear, getPanchangYearMeta } from '../utils/thakurPrasadCalendar';
 
 /**
@@ -897,6 +898,47 @@ export function getFestivalsForYear(year: number = new Date().getFullYear()): Fe
     const dateB = b.gregorianDate || '9999-12-31';
     return dateA.localeCompare(dateB);
   });
+}
+
+/**
+ * आज की दिनांक भारतीय मानक समय (IST: Asia/Kolkata) अनुसार YYYY-MM-DD प्रारूप में प्राप्त करें
+ */
+export function getTodayISTDateString(): string {
+  try {
+    const d = new Date();
+    // 'en-CA' outputs standard ISO format 'YYYY-MM-DD'
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  } catch {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
+/**
+ * जांचें कि क्या किसी त्यौहार की तिथि चालू वर्ष में बीत/खत्म हो चुकी है
+ */
+export function isFestivalExpired(
+  festival: FestivalItem,
+  referenceDateStr: string = getTodayISTDateString()
+): boolean {
+  if (!festival.gregorianDate) return false;
+  return festival.gregorianDate < referenceDateStr;
+}
+
+/**
+ * चालू वर्ष में सक्रिय एवं आगामी त्यौहार प्राप्त करें (जिनकी तिथि खत्म हो चुकी है उन्हें स्वतः हटाकर)
+ */
+export function getActiveUpcomingFestivalsForYear(
+  year: number = new Date().getFullYear(),
+  referenceDateStr: string = getTodayISTDateString()
+): FestivalItem[] {
+  const allFestivals = getFestivalsForYear(year);
+  const currentYear = new Date().getFullYear();
+
+  // यदि चालू वर्ष देखा जा रहा है, तो केवल वही त्यौहार दिखाएं जिनकी तिथि आज या आगामी है
+  if (year === currentYear) {
+    return allFestivals.filter((fest) => !isFestivalExpired(fest, referenceDateStr));
+  }
+  return allFestivals;
 }
 
 // Current Year Dynamic Festivals List (Defaults to current system year & auto-renews dynamically)

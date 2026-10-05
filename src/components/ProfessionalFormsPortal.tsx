@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Award,
   UserCheck,
@@ -35,10 +35,10 @@ import {
   getBlocksForDistrict,
   getPanchayatsAndWardsForBlock
 } from '../data/locationData';
-import { Volunteer, DonationRecord, FestivalGreetingRecord, TaskRecord } from '../types';
+import { Volunteer, DonationRecord, FestivalGreetingRecord, TaskRecord, FestivalItem } from '../types';
 import { INITIAL_VOLUNTEERS, INITIAL_TASKS } from '../data/taskData';
 import { DONORS_DATA } from '../data/donorsData';
-import { INITIAL_FESTIVAL_GREETINGS } from '../data/festivalsData';
+import { INITIAL_FESTIVAL_GREETINGS, getActiveUpcomingFestivalsForYear, CURRENT_YEAR } from '../data/festivalsData';
 import { formatCertificateNumber } from '../utils/certificateUtils';
 import { RealPaymentGatewayModal, DonorPaymentData } from './donation/RealPaymentGatewayModal';
 import {
@@ -108,12 +108,12 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
   const [appWhatsapp, setAppWhatsapp] = useState('');
   const [appEmail, setAppEmail] = useState('');
   const [appAddress, setAppAddress] = useState('');
-  const [appDistrict, setAppDistrict] = useState('Ghazipur');
-  const [appState, setAppState] = useState('Uttar Pradesh');
-  const [appPin, setAppPin] = useState('233001');
-  const [appSector, setAppSector] = useState('Shiksha (Education)');
-  const [appFromDate, setAppFromDate] = useState(() => getTodayDateString());
-  const [appToDate, setAppToDate] = useState(() => getTodayDateString());
+  const [appDistrict, setAppDistrict] = useState('');
+  const [appState, setAppState] = useState('');
+  const [appPin, setAppPin] = useState('');
+  const [appSector, setAppSector] = useState('');
+  const [appFromDate, setAppFromDate] = useState('');
+  const [appToDate, setAppToDate] = useState('');
   const [appDescription, setAppDescription] = useState('');
   const [appRef1Name, setAppRef1Name] = useState('');
   const [appRef1Phone, setAppRef1Phone] = useState('');
@@ -124,58 +124,60 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
   const [appSuccess, setAppSuccess] = useState(false);
 
   // ==========================================
-  // 2. VOLUNTEER FORM STATE
+  // 2. VOLUNTEER FORM STATE (No prefilled details)
   // ==========================================
   const [volPhoto, setVolPhoto] = useState<string>('');
   const [volName, setVolName] = useState('');
   const [volRelationType, setVolRelationType] = useState<'Father' | 'Husband' | 'Guardian'>('Father');
   const [volFatherName, setVolFatherName] = useState('');
-  const [volGender, setVolGender] = useState('Male');
-  const [volDob, setVolDob] = useState('2000-01-01');
-  const [volAge, setVolAge] = useState<number>(26);
-  const [volJoinDate, setVolJoinDate] = useState(() => getTodayDateString());
+  const [volGender, setVolGender] = useState('');
+  const [volDob, setVolDob] = useState('');
+  const [volAge, setVolAge] = useState<number | ''>('');
+  const [volJoinDate, setVolJoinDate] = useState('');
   const [volMobile, setVolMobile] = useState('');
   const [volEmail, setVolEmail] = useState('');
   const [volAadhaar, setVolAadhaar] = useState('');
   const [volAadhaarFile, setVolAadhaarFile] = useState<string | null>(null);
-  const [volEducation, setVolEducation] = useState('Graduate');
+  const [volEducation, setVolEducation] = useState('');
   const [volAddress, setVolAddress] = useState('');
-  const [volCity, setVolCity] = useState('Ghazipur');
-  const [volState, setVolState] = useState('Uttar Pradesh');
-  const [volPin, setVolPin] = useState('233001');
-  const [volSectors, setVolSectors] = useState<string[]>(['Shiksha (Education)', 'Health & Swasthya']);
-  const [volHasBike, setVolHasBike] = useState('Yes');
-  const [volTimeAvail, setVolTimeAvail] = useState('Weekend');
+  const [volCity, setVolCity] = useState('');
+  const [volState, setVolState] = useState('');
+  const [volPin, setVolPin] = useState('');
+  const [volSectors, setVolSectors] = useState<string[]>([]);
+  const [volHasBike, setVolHasBike] = useState('');
+  const [volTimeAvail, setVolTimeAvail] = useState('');
   const [volSignature, setVolSignature] = useState<string | null>(null);
   const [volDeclaration, setVolDeclaration] = useState(false);
   const [volError, setVolError] = useState<string | null>(null);
   const [volSuccess, setVolSuccess] = useState(false);
 
   // ==========================================
-  // 3. FESTIVAL WISHES FORM STATE
+  // 3. FESTIVAL WISHES FORM STATE (No prefilled details)
   // ==========================================
   const [festPhoto, setFestPhoto] = useState<string>('');
   const [festName, setFestName] = useState('');
-  const [festDesignation, setFestDesignation] = useState('Teacher (शिक्षक)');
+  const [festDesignation, setFestDesignation] = useState('');
+  const upcomingFestivalsList: FestivalItem[] = useMemo(() => {
+    return getActiveUpcomingFestivalsForYear(CURRENT_YEAR);
+  }, []);
+
   const [festMobile, setFestMobile] = useState('');
-  const [festFestival, setFestFestival] = useState('Independence Day (स्वतंत्रता दिवस)');
-  const [festDate, setFestDate] = useState(() => getTodayDateString());
-  const [festMessage, setFestMessage] = useState(
-    'समस्त देशवासियों को स्वतंत्रता दिवस की हार्दिक शुभकामनाएं! राष्ट्र निर्माण और जनसेवा में सहभागी बनें।'
-  );
-  const [festTargetAudience, setFestTargetAudience] = useState('All Members (समस्त सदस्यगण)');
+  const [festFestival, setFestFestival] = useState<string>('');
+  const [festDate, setFestDate] = useState('');
+  const [festMessage, setFestMessage] = useState<string>('');
+  const [festTargetAudience, setFestTargetAudience] = useState('');
   const [festError, setFestError] = useState<string | null>(null);
   const [festSuccess, setFestSuccess] = useState(false);
 
   // ==========================================
-  // 4. CERTIFICATE VERIFICATION FORM STATE
+  // 4. CERTIFICATE VERIFICATION FORM STATE (No prefilled details)
   // ==========================================
   const [verPhoto, setVerPhoto] = useState<string>('');
-  const [verCertNo, setVerCertNo] = useState('JJF/VOL/2026/659');
+  const [verCertNo, setVerCertNo] = useState('');
   const [verName, setVerName] = useState('');
   const [verMobile, setVerMobile] = useState('');
-  const [verCertType, setVerCertType] = useState('Volunteer');
-  const [verIssueDate, setVerIssueDate] = useState(() => getTodayDateString());
+  const [verCertType, setVerCertType] = useState('');
+  const [verIssueDate, setVerIssueDate] = useState('');
   const [verError, setVerError] = useState<string | null>(null);
   const [verResult, setVerResult] = useState<{
     verified: boolean;
@@ -189,7 +191,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
   } | null>(null);
 
   // ==========================================
-  // 5. DONATION FORM STATE
+  // 5. DONATION FORM STATE (No prefilled details)
   // ==========================================
   const [donPhoto, setDonPhoto] = useState<string>('');
   const [donName, setDonName] = useState('');
@@ -199,14 +201,14 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
   const [donPan, setDonPan] = useState('');
   const [donPanDoc, setDonPanDoc] = useState<string | null>(null);
   const [donAddress, setDonAddress] = useState('');
-  const [donDistrict, setDonDistrict] = useState('Ghazipur');
-  const [donState, setDonState] = useState('Uttar Pradesh');
-  const [donPin, setDonPin] = useState('233001');
-  const [donDate, setDonDate] = useState(() => getTodayDateString());
-  const [donAmount, setDonAmount] = useState<number>(2100);
+  const [donDistrict, setDonDistrict] = useState('');
+  const [donState, setDonState] = useState('');
+  const [donPin, setDonPin] = useState('');
+  const [donDate, setDonDate] = useState('');
+  const [donAmount, setDonAmount] = useState<number | ''>('');
   const [donCustomAmount, setDonCustomAmount] = useState<string>('');
-  const [donPurpose, setDonPurpose] = useState('Shiksha (Free Child Education)');
-  const [donPaymentMode, setDonPaymentMode] = useState('UPI');
+  const [donPurpose, setDonPurpose] = useState('');
+  const [donPaymentMode, setDonPaymentMode] = useState('');
   const [donDeclaration, setDonDeclaration] = useState(false);
   const [donError, setDonError] = useState<string | null>(null);
   const [donSuccess, setDonSuccess] = useState(false);
@@ -443,28 +445,19 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
       return;
     }
 
-    // Parse festival
-    let festKey = 'independence_day';
-    let festNameHi = 'स्वतंत्रता दिवस 2026';
-    if (festFestival.includes('Diwali')) {
-      festKey = 'diwali';
-      festNameHi = 'दीपावली 2026';
-    } else if (festFestival.includes('Holi')) {
-      festKey = 'holi';
-      festNameHi = 'होली महापर्व 2026';
-    } else if (festFestival.includes('Teachers')) {
-      festKey = 'teachers_day';
-      festNameHi = 'शिक्षक दिवस 2026';
-    } else if (festFestival.includes('Republic')) {
-      festKey = 'republic_day';
-      festNameHi = 'गणतंत्र दिवस 2026';
-    }
+    // Parse festival dynamically from upcomingFestivalsList
+    const matchedFest = upcomingFestivalsList.find((f) => f.id === festFestival) || upcomingFestivalsList[0];
+    const festKey = matchedFest?.id || 'diwali';
+    const festNameHi = matchedFest?.nameHindi || 'पावन पर्व';
+    const festNameEn = matchedFest?.nameEnglish || 'Holy Festival';
+    const festEmoji = matchedFest?.symbolEmoji || '🪔';
+    const festShloka = matchedFest?.shloka || 'सर्वे भवन्तु सुखिनः सर्वे सन्तु निरामयाः। सर्वे भद्राणि पश्यन्तु मा कश्चिद्दुःखभाग्भवेत्॥';
 
     const newGreeting: FestivalGreetingRecord = {
       id: formatCertificateNumber('FEST', festDate || new Date()),
       festivalId: festKey,
       festivalNameHindi: festNameHi,
-      festivalNameEnglish: festFestival,
+      festivalNameEnglish: festNameEn,
       recipientName: festName.trim(),
       recipientTitle: festDesignation,
       senderName: 'जीवन ज्योति फाउंडेशन, ग़ाज़ीपुर, उत्तर प्रदेश, भारत',
@@ -475,9 +468,9 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
       country: 'India',
       date: festDate ? new Date(festDate).toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
       customMessage: festMessage.trim(),
-      shloka: 'सर्वे भवन्तु सुखिनः सर्वे सन्तु निरामयाः। सर्वे भद्राणि पश्यन्तु मा कश्चिद्दुःखभाग्भवेत्॥',
-      category: 'cultural',
-      symbolEmoji: '🪔'
+      shloka: festShloka,
+      category: matchedFest?.category || 'cultural',
+      symbolEmoji: festEmoji
     };
 
     setFestSuccess(true);
@@ -1087,9 +1080,11 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                         setAppState(newSt);
                         const dists = getDistrictsForStateName(newSt);
                         if (dists.length > 0) setAppDistrict(dists[0].nameHindi);
+                        else setAppDistrict('');
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- राज्य / केंद्र शासित प्रदेश चुनें --</option>
                       <optgroup label="🏛️ भारत के 28 राज्य (28 Indian States)">
                         {regularStates.map((st) => (
                           <option key={st.id} value={st.nameHindi}>
@@ -1117,6 +1112,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setAppDistrict(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- जिला चुनें --</option>
                       {getDistrictsForStateName(appState).map((d) => (
                         <option key={d.id} value={d.nameHindi}>
                           {d.nameHindi}
@@ -1211,6 +1207,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setAppSector(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- सेवा का क्षेत्र चुनें (Select Field) --</option>
                     <option value="Shiksha (Education)">शिक्षा (Child Literacy & Education)</option>
                     <option value="Swasthya (Health & Medical)">स्वास्थ्य (Health Camps & Medicine)</option>
                     <option value="Sewa (Social Service)">सेवा (Poverty Relief & Food Distribution)</option>
@@ -1439,6 +1436,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setVolGender(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- लिंग चुनें (Select Gender) --</option>
                     <option value="Male">पुरुष (Male)</option>
                     <option value="Female">महिला (Female)</option>
                     <option value="Other">अन्य (Other)</option>
@@ -1544,6 +1542,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setVolEducation(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- शैक्षिक योग्यता चुनें --</option>
                     <option value="10th Pass">10वीं (High School)</option>
                     <option value="12th Pass">12वीं (Intermediate)</option>
                     <option value="Graduate">स्नातक (Graduate - BA/BSc/BCom/BTech)</option>
@@ -1625,9 +1624,11 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                         setVolState(newSt);
                         const dists = getDistrictsForStateName(newSt);
                         if (dists.length > 0) setVolCity(dists[0].nameHindi);
+                        else setVolCity('');
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- राज्य / केंद्र शासित प्रदेश चुनें --</option>
                       <optgroup label="🏛️ भारत के 28 राज्य (28 Indian States)">
                         {regularStates.map((st) => (
                           <option key={st.id} value={st.nameHindi}>
@@ -1655,6 +1656,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setVolCity(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- जिला चुनें --</option>
                       {getDistrictsForStateName(volState).map((d) => (
                         <option key={d.id} value={d.nameHindi}>
                           {d.nameHindi}
@@ -1787,6 +1789,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setVolHasBike(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-sm font-medium bg-white cursor-pointer"
                     >
+                      <option value="">-- चुनें (Select) --</option>
                       <option value="Yes">हाँ (Yes - I have bike/vehicle)</option>
                       <option value="No">नहीं (No)</option>
                     </select>
@@ -1801,6 +1804,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setVolTimeAvail(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-sm font-medium bg-white cursor-pointer"
                     >
+                      <option value="">-- समय उपलब्धता चुनें --</option>
                       <option value="Weekend">सप्ताहांत (Weekends - Sat/Sun)</option>
                       <option value="Weekdays">सप्ताह के दिन (Weekdays - Mon to Fri)</option>
                       <option value="Any Time">किसी भी समय (Any Time / Flexible)</option>
@@ -1935,6 +1939,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setFestDesignation(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- पद / उपाधि चुनें --</option>
                     <option value="Teacher (शिक्षक)">शिक्षक (Teacher)</option>
                     <option value="Volunteer (स्वयंसेवक)">स्वयंसेवक (Volunteer)</option>
                     <option value="Member (सदस्य)">सदस्य (Member)</option>
@@ -1968,19 +1973,21 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                   </label>
                   <select
                     value={festFestival}
-                    onChange={(e) => setFestFestival(e.target.value)}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setFestFestival(selectedId);
+                      const festObj = upcomingFestivalsList.find((f) => f.id === selectedId);
+                      if (festObj) {
+                        setFestMessage(festObj.blessingHindi);
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-sm font-medium bg-white cursor-pointer"
                   >
-                    <option value="Independence Day (स्वतंत्रता दिवस)">🇮🇳 स्वतंत्रता दिवस (Independence Day)</option>
-                    <option value="Diwali (दीपावली)">🪔 दीपावली (Diwali Mahotsav)</option>
-                    <option value="Holi (होली)">🎨 होली महापर्व (Holi Festival)</option>
-                    <option value="Teachers Day (शिक्षक दिवस)">📚 शिक्षक दिवस (Teachers Day)</option>
-                    <option value="Republic Day (गणतंत्र दिवस)">🇮🇳 गणतंत्र दिवस (Republic Day)</option>
-                    <option value="Raksha Bandhan (रक्षाबंधन)">🎀 रक्षाबंधन (Raksha Bandhan)</option>
-                    <option value="Gandhi Jayanti (गाँधी जयंती)">🕊️ गाँधी जयंती (Gandhi Jayanti)</option>
-                    <option value="Chhath Puja (छठ पूजा)">☀️ छठ पूजा (Chhath Puja)</option>
-                    <option value="Eid (ईद-उल-फ़ितर)">🌙 ईद-उल-फ़ितर (Eid)</option>
-                    <option value="Christmas (क्रिसमस)">🎄 क्रिसमस (Christmas)</option>
+                    {upcomingFestivalsList.map((fest) => (
+                      <option key={fest.id} value={fest.id}>
+                        {fest.symbolEmoji} {fest.nameHindi} ({fest.dateFormattedHindi})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -2009,6 +2016,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setFestTargetAudience(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- किसके लिए शुभकामना? चुनें --</option>
                     <option value="All Members (समस्त सदस्यगण)">समस्त सदस्यगण (All Foundation Members)</option>
                     <option value="Specific School (विशिष्ट विद्यालय)">विशिष्ट विद्यालय / छात्र-छात्राएं (School & Students)</option>
                     <option value="Village (ग्रामवासी)">ग्रामवासी एवं क्षेत्रवासी (Village Residents)</option>
@@ -2172,6 +2180,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                     onChange={(e) => setVerCertType(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm font-medium bg-white cursor-pointer"
                   >
+                    <option value="">-- प्रमाण पत्र का प्रकार चुनें --</option>
                     <option value="Volunteer">स्वयंसेवक प्रमाण पत्र (Volunteer)</option>
                     <option value="Donation">आधिकारिक दान रसीद (Donation Receipt)</option>
                     <option value="Appreciation">प्रशस्ति पत्र (Appreciation)</option>
@@ -2495,6 +2504,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setDonPurpose(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-sm font-medium bg-white cursor-pointer"
                     >
+                      <option value="">-- दान का उद्देश्य चुनें --</option>
                       <option value="Shiksha (Free Child Education)">शिक्षा (गरीब बच्चों की निःशुल्क शिक्षा)</option>
                       <option value="Bhojan (Nutritious Meals)">भोजन (पौष्टिक आहार एवं अन्न सेवा)</option>
                       <option value="Medical (Free Health Camps)">स्वास्थ्य (दवाएं व स्वास्थ्य शिविर)</option>
@@ -2545,9 +2555,11 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                         setDonState(newSt);
                         const dists = getDistrictsForStateName(newSt);
                         if (dists.length > 0) setDonDistrict(dists[0].nameHindi);
+                        else setDonDistrict('');
                       }}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- राज्य / केंद्र शासित प्रदेश चुनें --</option>
                       <optgroup label="🏛️ भारत के 28 राज्य (28 Indian States)">
                         {regularStates.map((st) => (
                           <option key={st.id} value={st.nameHindi}>
@@ -2575,6 +2587,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                       onChange={(e) => setDonDistrict(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-xs font-bold bg-white cursor-pointer"
                     >
+                      <option value="">-- जिला चुनें --</option>
                       {getDistrictsForStateName(donState).map((d) => (
                         <option key={d.id} value={d.nameHindi}>
                           {d.nameHindi}

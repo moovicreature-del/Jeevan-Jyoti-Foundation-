@@ -607,6 +607,16 @@ export const DEFAULT_STRUCTURED_ADDRESS: StructuredAddress = {
   pincode: '233222'
 };
 
+export const EMPTY_STRUCTURED_ADDRESS: StructuredAddress = {
+  country: '',
+  state: '',
+  district: '',
+  block: '',
+  panchayatOrWardType: 'panchayat',
+  wardOrVillage: '',
+  pincode: ''
+};
+
 export function formatStructuredAddress(addr: Partial<StructuredAddress>): string {
   const parts: string[] = [];
   if (addr.wardOrVillage) parts.push(`ग्राम/वार्ड: ${addr.wardOrVillage}`);

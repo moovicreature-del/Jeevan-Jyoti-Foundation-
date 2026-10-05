@@ -211,12 +211,16 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
   const [quoteText, setQuoteText] = useState<string>(activeQuote.quoteHi);
   const [quoteAuthor, setQuoteAuthor] = useState<string>(activeQuote.author);
 
-  // 3. User Personalization & Photo state
-  const [userName, setUserName] = useState<string>('श्री शैलेश प्रधान जी');
-  const [userTitle, setUserTitle] = useState<string>('समाजसेवी • संस्थापक JJF');
-  const [userCity, setUserCity] = useState<string>('ग़ाज़ीपुर (उ.प्र.)');
-  const [userPhoto, setUserPhoto] = useState<string>(SAMPLE_AVATARS[0].url);
+  // 3. User Personalization & Photo state (No pre-filled details)
+  const [userSalutation, setUserSalutation] = useState<string>(''); // 'श्री' | 'श्रीमती' | 'सुश्री' | 'डॉ.' | ''
+  const [userName, setUserName] = useState<string>('');
+  const [userTitle, setUserTitle] = useState<string>('');
+  const [userCity, setUserCity] = useState<string>('');
+  const [userPhoto, setUserPhoto] = useState<string>('');
   const [frameShape, setFrameShape] = useState<'circle' | 'rounded' | 'shield'>('circle');
+
+  // Computed full display name with salutation
+  const fullDisplayName = [userSalutation, userName].filter(Boolean).join(' ');
 
   // 4. Platform Ratio state (Square / 9:16 Status / 4:5 Portrait / 16:9 Landscape)
   const [selectedRatioId, setSelectedRatioId] = useState<PosterRatioConfig['id']>('square-post');
@@ -1151,16 +1155,11 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
     const textLeft = photoX + photoSize + Math.round(footerCardHeight * 0.22);
     ctx.textAlign = 'left';
 
-    // User Name with Royal Crown/Star Accent
+    // User Name (Without star accent as requested)
+    const displayNameToRender = fullDisplayName || userName || 'शुभचिंतक';
     ctx.fillStyle = activeTheme.isLight ? (activeTheme.cardTextColor || '#0f172a') : '#ffffff';
     ctx.font = `900 ${Math.round(width * 0.025)}px sans-serif`;
-    ctx.fillText(`${userName}`, textLeft, photoY + photoSize * 0.32);
-
-    // Star accent next to name
-    ctx.fillStyle = '#d97706';
-    ctx.font = `bold ${Math.round(width * 0.016)}px sans-serif`;
-    const nameWidth = ctx.measureText(userName).width;
-    ctx.fillText(' ✦', textLeft + nameWidth, photoY + photoSize * 0.32);
+    ctx.fillText(`${displayNameToRender}`, textLeft, photoY + photoSize * 0.32);
 
     // User Title on Royal Ribbon Badge
     if (userTitle) {
@@ -1234,7 +1233,7 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Canvas blob generation failed'))), 'image/png', 1.0);
     });
 
-    const safeName = (userName || 'JJF').replace(/\s+/g, '_');
+    const safeName = (fullDisplayName || userName || 'JJF').replace(/\s+/g, '_');
     const safeCat = selectedCategory;
     const fileName = `JJF_Motivational_Poster_${safeCat}_${safeName}_${Date.now()}.png`;
     const file = new File([blob], fileName, { type: 'image/png' });
@@ -1254,7 +1253,8 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
     try {
       const { blob, dataUrl, file } = await renderPosterCanvas();
 
-      const shareText = `🌟 *दैनिक प्रेरक सुविचार (जीवन ज्योति फाउंडेशन, ग़ाज़ीपुर)* 🌟\n\n"${quoteText}"\n\n— *${quoteAuthor}*\n\nसादर: ${userName}${userTitle ? ` (${userTitle})` : ''}\n📍 ${userCity}\n\n🎨 अपना फोटो पोस्टर बनाएं:\n${window.location.origin}`;
+      const displaySender = fullDisplayName || userName || 'शुभचिंतक';
+      const shareText = `🌟 *दैनिक प्रेरक सुविचार (जीवन ज्योति फाउंडेशन, ग़ाज़ीपुर)* 🌟\n\n"${quoteText}"\n\n— *${quoteAuthor}*\n\nसादर: ${displaySender}${userTitle ? ` (${userTitle})` : ''}${userCity ? `\n📍 ${userCity}` : ''}\n\n🎨 अपना फोटो पोस्टर बनाएं:\n${window.location.origin}`;
 
       // Check if Web Share API with image file is supported (Android Chrome, iOS Safari, etc.)
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1328,7 +1328,8 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
     try {
       const { blob, dataUrl, file } = await renderPosterCanvas();
 
-      const shareQuote = `"${quoteText}" — ${quoteAuthor} (सादर: ${userName}, ${userCity}) • जीवन ज्योति फाउंडेशन, ग़ाज़ीपुर`;
+      const displaySender = fullDisplayName || userName || 'शुभचिंतक';
+      const shareQuote = `"${quoteText}" — ${quoteAuthor} (सादर: ${displaySender}${userCity ? `, ${userCity}` : ''}) • जीवन ज्योति फाउंडेशन, ग़ाज़ीपुर`;
 
       // Check if Web Share API with image file is supported
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1704,13 +1705,26 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
               {/* Photo Upload Row */}
               <div className="flex items-center gap-4">
                 <div className="relative shrink-0">
-                  <img
-                    src={userPhoto}
-                    alt={userName}
-                    className={`w-16 h-16 object-cover border-2 border-amber-400 shadow-md ${
-                      frameShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
-                    }`}
-                  />
+                  {userPhoto ? (
+                    <img
+                      src={userPhoto}
+                      alt={fullDisplayName || 'Profile'}
+                      className={`w-16 h-16 object-cover border-2 border-amber-400 shadow-md ${
+                        frameShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`w-16 h-16 flex flex-col items-center justify-center border-2 border-dashed border-amber-400/80 bg-slate-950 text-amber-400 cursor-pointer shadow-md ${
+                        frameShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
+                      }`}
+                      title="अपनी फोटो अपलोड करें"
+                    >
+                      <Camera className="w-5 h-5 opacity-80" />
+                      <span className="text-[8px] font-bold text-slate-300 mt-0.5">फोटो जोड़ें</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -1837,17 +1851,79 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
                 )}
               </div>
 
-              {/* Name, Designation, City Fields */}
+              {/* Title (Salutation) Selector with Sushri, Shrimati, Shri, Dr., Pt. */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-300">
+                    शीर्षक / संबोधन (Title):
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    सुश्री व श्रीमती विकल्प शामिल
+                  </span>
+                </div>
+
+                {/* Dropdown Select Option for Title */}
+                <select
+                  value={userSalutation}
+                  onChange={(e) => setUserSalutation(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl text-xs text-white font-medium focus:outline-none mb-1.5"
+                >
+                  <option value="">-- शीर्षक / संबोधन चुनें (कोई नहीं) --</option>
+                  <option value="सुश्री">सुश्री (Sushri / Ms.)</option>
+                  <option value="श्रीमती">श्रीमती (Shrimati / Mrs.)</option>
+                  <option value="श्री">श्री (Shri / Mr.)</option>
+                  <option value="डॉ.">डॉ. (Dr.)</option>
+                  <option value="पं.">पं. (Pandit)</option>
+                  <option value="प्रो.">प्रो. (Prof.)</option>
+                </select>
+
+                {/* Quick Selection Buttons */}
+                <div className="grid grid-cols-6 gap-1">
+                  {[
+                    { label: 'सुश्री', value: 'सुश्री' },
+                    { label: 'श्रीमती', value: 'श्रीमती' },
+                    { label: 'श्री', value: 'श्री' },
+                    { label: 'डॉ.', value: 'डॉ.' },
+                    { label: 'पं.', value: 'पं.' },
+                    { label: 'कोई नहीं', value: '' }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setUserSalutation(item.value)}
+                      className={`py-1.5 px-1 rounded-xl text-[11px] font-bold transition border cursor-pointer text-center truncate ${
+                        userSalutation === item.value
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                      title={item.label}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Name, Designation, City Fields (No star after name) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300">आपका नाम (Full Name):</label>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-xs text-white focus:outline-none"
-                    placeholder="जैसे: श्री राहुल शर्मा"
-                  />
+                  <label className="text-[11px] font-bold text-slate-300">
+                    आपका नाम (Full Name):
+                  </label>
+                  <div className="flex gap-1.5">
+                    {userSalutation && (
+                      <span className="px-2.5 py-1.5 bg-amber-500/20 border border-amber-400/50 text-amber-300 rounded-xl text-xs font-bold flex items-center shrink-0">
+                        {userSalutation}
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-xs text-white focus:outline-none"
+                      placeholder="उदा. राहुल शर्मा / प्रिया वर्मा"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-300">पद / उपाधि (Designation):</label>
@@ -2338,13 +2414,23 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
                     {/* Royal Medallion Golden Frame around Photo */}
                     <div className="relative shrink-0">
                       <div className="w-13 h-13 rounded-full p-0.5 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-600 shadow-md ring-2 ring-amber-400/40">
-                        <img
-                          src={userPhoto}
-                          alt={userName}
-                          className={`w-full h-full object-cover ${
-                            frameShape === 'circle' ? 'rounded-full' : 'rounded-xl'
-                          }`}
-                        />
+                        {userPhoto ? (
+                          <img
+                            src={userPhoto}
+                            alt={fullDisplayName || 'Profile'}
+                            className={`w-full h-full object-cover ${
+                              frameShape === 'circle' ? 'rounded-full' : 'rounded-xl'
+                            }`}
+                          />
+                        ) : (
+                          <div
+                            className={`w-full h-full flex items-center justify-center bg-amber-950/80 text-amber-300 font-black text-sm ${
+                              frameShape === 'circle' ? 'rounded-full' : 'rounded-xl'
+                            }`}
+                          >
+                            {userName ? userName.trim().charAt(0) : '👤'}
+                          </div>
+                        )}
                       </div>
                       {/* Crown Medallion Badge */}
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 border border-amber-700 shadow-sm flex items-center justify-center text-[9px] text-slate-950 font-black">
@@ -2358,9 +2444,8 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
                           className="text-xs sm:text-sm font-black leading-tight drop-shadow-sm truncate"
                           style={{ color: activeTheme.isLight ? (activeTheme.cardTextColor || '#0f172a') : '#ffffff' }}
                         >
-                          {userName}
+                          {fullDisplayName || userName || 'आपका नाम'}
                         </span>
-                        <span className="text-[10px] text-amber-500 font-bold">✦</span>
                       </div>
 
                       {userTitle && (

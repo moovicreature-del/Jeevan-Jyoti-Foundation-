@@ -26,14 +26,16 @@ import {
   getFestivalsForYear,
   AVAILABLE_PANCHANG_YEARS,
   INITIAL_FESTIVAL_GREETINGS,
-  CURRENT_YEAR
+  CURRENT_YEAR,
+  getTodayISTDateString,
+  isFestivalExpired
 } from '../data/festivalsData';
 import { formatCertificateNumber } from '../utils/certificateUtils';
 import { getPanchangYearMeta, PanchangYearMeta } from '../utils/thakurPrasadCalendar';
 import { FestivalItem, FestivalGreetingRecord } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { StructuredAddressSelector } from './StructuredAddressSelector';
-import { DEFAULT_STRUCTURED_ADDRESS, StructuredAddress } from '../data/locationData';
+import { EMPTY_STRUCTURED_ADDRESS, StructuredAddress } from '../data/locationData';
 import { CandidatePhotoUploader } from './CandidatePhotoUploader';
 
 interface Props {
@@ -48,6 +50,9 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
   // Active Panchang Year (Defaults to Current System Year, supports dynamic auto-renewal)
   const [selectedYear, setSelectedYear] = useState<number>(CURRENT_YEAR);
 
+  // Today's date string in Indian Standard Time (YYYY-MM-DD)
+  const todayStr = useMemo(() => getTodayISTDateString(), []);
+
   // Active Year Panchang Metadata (Vikram Samvat, Saka Samvat, Samvatsar Name)
   const yearMeta: PanchangYearMeta = useMemo(() => {
     return getPanchangYearMeta(selectedYear);
@@ -58,30 +63,48 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
     return getFestivalsForYear(selectedYear);
   }, [selectedYear]);
 
+  // चालू वर्ष में जिन त्यौहारों की तिथि समाप्त/बीत चुकी है, वे होम पेज पर प्रदर्शित न हों
+  const displayFestivals = useMemo(() => {
+    if (selectedYear === CURRENT_YEAR) {
+      return festivalsForSelectedYear.filter((fest) => !isFestivalExpired(fest, todayStr));
+    }
+    return festivalsForSelectedYear;
+  }, [festivalsForSelectedYear, selectedYear, todayStr]);
+
   // Filters & State
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMaas, setSelectedMaas] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedFestival, setSelectedFestival] = useState<FestivalItem>(festivalsForSelectedYear[0]);
+  
+  // Initialize to the first upcoming active festival
+  const [selectedFestival, setSelectedFestival] = useState<FestivalItem>(() => {
+    const today = getTodayISTDateString();
+    const currentFestivals = getFestivalsForYear(CURRENT_YEAR);
+    const upcoming = currentFestivals.find((f) => !isFestivalExpired(f, today));
+    return upcoming || currentFestivals[0];
+  });
+  
   const [activeViewTab, setActiveViewTab] = useState<'register' | 'wall' | 'calendar'>('calendar');
 
-  // Update selected festival whenever year changes if needed
+  // Update selected festival whenever year or displayed festivals change
   useEffect(() => {
-    const matched = festivalsForSelectedYear.find((f) => f.id === selectedFestival.id);
+    const matched = displayFestivals.find((f) => f.id === selectedFestival.id);
     if (matched) {
       setSelectedFestival(matched);
-    } else {
+    } else if (displayFestivals.length > 0) {
+      setSelectedFestival(displayFestivals[0]);
+    } else if (festivalsForSelectedYear.length > 0) {
       setSelectedFestival(festivalsForSelectedYear[0]);
     }
-  }, [selectedYear, festivalsForSelectedYear]);
+  }, [selectedYear, displayFestivals, festivalsForSelectedYear]);
 
-  // Form State
+  // Form State (No prefilled details, all empty by default)
   const [recipientPhoto, setRecipientPhoto] = useState<string>('');
   const [recipientName, setRecipientName] = useState('');
-  const [recipientTitle, setRecipientTitle] = useState('सम्मानित नागरिक (Respected Citizen)');
-  const [address, setAddress] = useState<StructuredAddress>(DEFAULT_STRUCTURED_ADDRESS);
+  const [recipientTitle, setRecipientTitle] = useState('');
+  const [address, setAddress] = useState<StructuredAddress>(EMPTY_STRUCTURED_ADDRESS);
   const [phone, setPhone] = useState('');
-  const [senderName, setSenderName] = useState('जीवन ज्योति फाउंडेशन परिवार');
+  const [senderName, setSenderName] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -109,16 +132,9 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
     }
   }, [greetings]);
 
-  // Update default message when festival changes
-  useEffect(() => {
-    if (selectedFestival) {
-      setCustomMessage(selectedFestival.blessingHindi);
-    }
-  }, [selectedFestival]);
-
-  // Filter festivals based on category, Maas, and search query
+  // Filter festivals based on category, Maas, and search query (applied strictly to active non-expired festivals)
   const filteredFestivals = useMemo(() => {
-    return festivalsForSelectedYear.filter((fest) => {
+    return displayFestivals.filter((fest) => {
       const matchesCategory = selectedCategory === 'all' || fest.category === selectedCategory;
       const matchesMaas = selectedMaas === 'all' || (fest.hinduMonthHindi && fest.hinduMonthHindi.includes(selectedMaas));
       const matchesSearch =
@@ -128,14 +144,13 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
         (fest.tithiHindi && fest.tithiHindi.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCategory && matchesMaas && matchesSearch;
     });
-  }, [festivalsForSelectedYear, selectedCategory, selectedMaas, searchQuery]);
+  }, [displayFestivals, selectedCategory, selectedMaas, searchQuery]);
 
   // Upcoming Next Festival Finder
   const upcomingFestival = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const upcoming = festivalsForSelectedYear.find((f) => (f.gregorianDate || '9999-12-31') >= todayStr);
-    return upcoming || festivalsForSelectedYear[0];
-  }, [festivalsForSelectedYear]);
+    const upcoming = displayFestivals.find((f) => (f.gregorianDate || '9999-12-31') >= todayStr);
+    return upcoming || displayFestivals[0] || festivalsForSelectedYear[0];
+  }, [displayFestivals, festivalsForSelectedYear, todayStr]);
 
   // Form Submit Handler
   const handleRegisterGreeting = (e: React.FormEvent) => {
@@ -276,7 +291,7 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
                 <span>{yearMeta.hinduYearTitle}</span>
               </div>
               <div className="text-[11px] font-semibold text-gray-600">
-                कुल प्रमुख पर्व: <strong className="text-amber-900">{festivalsForSelectedYear.length}</strong> • काशी विश्वनाथ पंचांग गणना
+                कुल आगामी पर्व: <strong className="text-amber-900">{displayFestivals.length}</strong> • काशी विश्वनाथ पंचांग गणना
               </div>
             </div>
           </div>
@@ -304,7 +319,7 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
               }`}
             >
               <Calendar className="w-4 h-4" />
-              <span>पंचांग कैलेंडर ({festivalsForSelectedYear.length})</span>
+              <span>पंचांग कैलेंडर ({displayFestivals.length})</span>
             </button>
 
             <button
@@ -334,37 +349,45 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
                       <span>1. त्यौहार चुनें (वर्ष {selectedYear})</span>
                     </div>
                     <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
-                      {festivalsForSelectedYear.length} Festivals
+                      {displayFestivals.length} आगामी पर्व
                     </span>
                   </div>
 
                   {/* Festival Grid Selector */}
                   <div className="grid grid-cols-2 gap-2 mt-3 max-h-[380px] overflow-y-auto pr-1">
-                    {festivalsForSelectedYear.map((fest) => {
-                      const isSelected = selectedFestival.id === fest.id;
-                      return (
-                        <button
-                          key={fest.id}
-                          type="button"
-                          onClick={() => setSelectedFestival(fest)}
-                          className={`p-2.5 rounded-xl text-left border transition-all flex items-start gap-2 cursor-pointer ${
-                            isSelected
-                              ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-400 shadow-sm'
-                              : 'bg-white hover:bg-amber-50/50 border-amber-200'
-                          }`}
-                        >
-                          <span className="text-xl shrink-0 mt-0.5">{fest.symbolEmoji}</span>
-                          <div className="min-w-0">
-                            <div className="font-black text-xs text-gray-900 truncate">
-                              {fest.nameHindi}
+                    {displayFestivals.length === 0 ? (
+                      <div className="col-span-2 py-6 px-3 text-center bg-amber-50 rounded-xl border border-dashed border-amber-300">
+                        <p className="text-xs font-bold text-amber-900">
+                          चालू वर्ष {selectedYear} में शेष सभी पर्व संपन्न हो चुके हैं।
+                        </p>
+                      </div>
+                    ) : (
+                      displayFestivals.map((fest) => {
+                        const isSelected = selectedFestival.id === fest.id;
+                        return (
+                          <button
+                            key={fest.id}
+                            type="button"
+                            onClick={() => setSelectedFestival(fest)}
+                            className={`p-2.5 rounded-xl text-left border transition-all flex items-start gap-2 cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-400 shadow-sm'
+                                : 'bg-white hover:bg-amber-50/50 border-amber-200'
+                            }`}
+                          >
+                            <span className="text-xl shrink-0 mt-0.5">{fest.symbolEmoji}</span>
+                            <div className="min-w-0">
+                              <div className="font-black text-xs text-gray-900 truncate">
+                                {fest.nameHindi}
+                              </div>
+                              <div className="text-[10px] text-amber-800 font-semibold truncate">
+                                {fest.dateFormattedHindi}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-amber-800 font-semibold truncate">
-                              {fest.dateFormattedHindi}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
@@ -432,7 +455,7 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-extrabold text-gray-800 mb-1">
-                        प्राप्तकर्ता का पूरा नाम (Recipient Full Name) *
+                        प्राप्तकर्ता का पूरा नाम (Recipient Full Name)
                       </label>
                       <input
                         type="text"
@@ -446,13 +469,17 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
 
                     <div>
                       <label className="block text-xs font-extrabold text-gray-800 mb-1">
-                        प्राप्तकर्ता का पद / उपाधि (Designation / Title) *
+                        प्राप्तकर्ता का पद / उपाधि (Designation / Title)
                       </label>
                       <select
                         value={recipientTitle}
                         onChange={(e) => setRecipientTitle(e.target.value)}
                         className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-[#FFFDF9] font-medium"
                       >
+                        <option value="">-- पद / उपाधि चुनें (Select Designation) --</option>
+                        <option value="सुश्री">सुश्री (Sushri)</option>
+                        <option value="श्रीमती">श्रीमती (Shrimati)</option>
+                        <option value="श्री">श्री (Shri)</option>
                         <option value="सम्मानित नागरिक (Respected Citizen)">सम्मानित नागरिक (Respected Citizen)</option>
                         <option value="समर्पित स्वयंसेवक (Dedicated Volunteer)">समर्पित स्वयंसेवक (Dedicated Volunteer)</option>
                         <option value="दानदाता एवं संरक्षक (Patron & Donor)">दानदाता एवं संरक्षक (Patron & Donor)</option>
@@ -650,7 +677,18 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
 
             {/* Festivals Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredFestivals.map((festival) => (
+              {filteredFestivals.length === 0 ? (
+                <div className="col-span-full py-12 px-6 text-center bg-white rounded-2xl border-2 border-dashed border-amber-300 shadow-xs">
+                  <div className="text-4xl mb-2">🪔</div>
+                  <h3 className="text-base font-black text-[#8B0000]">
+                    चालू वर्ष ({selectedYear}) में कोई आगामी पर्व नहीं मिला
+                  </h3>
+                  <p className="text-xs text-amber-900 mt-1 max-w-md mx-auto">
+                    इस श्रेणी या खोज अनुसार पर्वों की तिथि चालू वर्ष में संपन्न/समाप्त हो चुकी है। होम पेज पर केवल आगामी सक्रिय पर्व ही प्रदर्शित होते हैं।
+                  </p>
+                </div>
+              ) : (
+                filteredFestivals.map((festival) => (
                 <div
                   key={festival.id}
                   className="bg-white rounded-2xl p-5 border-2 border-amber-200 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all flex flex-col justify-between group relative overflow-hidden"
@@ -712,10 +750,11 @@ export const FestivalGreetingsPortal: React.FC<Props> = ({ onOpenCertificate }) 
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
+      )}
 
         {/* ----------------- TAB 3: REGISTERED GREETINGS WALL ----------------- */}
         {activeViewTab === 'wall' && (
