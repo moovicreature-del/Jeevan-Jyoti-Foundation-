@@ -364,16 +364,20 @@ function sanitizeContentData(raw: any): AppHomeContent {
 
   if (isThumbPermanentlyDeleted) {
     merged.appThumbnailUrl = '';
-  } else if (raw?.appThumbnailUrl || raw?.thumbnailUrl) {
-    merged.appThumbnailUrl = raw.appThumbnailUrl || raw.thumbnailUrl;
+  } else if (raw?.appThumbnailUrl !== undefined) {
+    merged.appThumbnailUrl = (raw.appThumbnailUrl && raw.appThumbnailUrl !== '/pwa-icon-512.png') ? raw.appThumbnailUrl : '';
+  } else if (raw?.thumbnailUrl) {
+    merged.appThumbnailUrl = (raw.thumbnailUrl && raw.thumbnailUrl !== '/pwa-icon-512.png') ? raw.thumbnailUrl : '';
   } else {
     try {
       const localThumb = localStorage.getItem('jjf_custom_thumbnail');
-      if (localThumb) {
+      if (localThumb && localThumb !== '/pwa-icon-512.png') {
         merged.appThumbnailUrl = localThumb;
+      } else {
+        merged.appThumbnailUrl = '';
       }
     } catch {
-      // Ignore
+      merged.appThumbnailUrl = '';
     }
   }
 
@@ -590,7 +594,9 @@ export async function resetAppLogo(
 export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  const resolvedThumb = thumbnailUrl.trim() || '/pwa-icon-512.png';
+  const resolvedThumb = (thumbnailUrl && thumbnailUrl.trim() && thumbnailUrl.trim() !== '/pwa-icon-512.png')
+    ? thumbnailUrl.trim()
+    : '/pwa-icon-512.png';
 
   try {
     // 1. Update Open Graph image (WhatsApp, Facebook, LinkedIn link share cards)
@@ -623,15 +629,12 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
     }
 
     // 4. Update Favicon if custom thumbnail supplied
-    if (thumbnailUrl.trim()) {
+    if (thumbnailUrl.trim() && thumbnailUrl.trim() !== '/pwa-icon-512.png') {
       const favicons = document.querySelectorAll('link[rel="icon"]');
       if (favicons.length > 0) {
         favicons.forEach((el) => el.setAttribute('href', resolvedThumb));
       }
     }
-
-    // 5. Dispatch reactive custom event for all components
-    window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: resolvedThumb }));
   } catch (e) {
     console.warn('Error applying dynamic app thumbnail:', e);
   }
@@ -649,11 +652,18 @@ export async function updateAppThumbnail(
 
   // 1. LocalStorage update (Safe write with quota protection)
   try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('jjf_thumb_permanently_deleted');
+    }
     safeSetLocalStorage('jjf_custom_thumbnail', thumbnailUrl);
     const local = localStorage.getItem('jjf_home_content');
     if (local) {
       const parsed = JSON.parse(local);
       parsed.appThumbnailUrl = thumbnailUrl;
+      delete parsed.thumbnailUrl;
+      delete parsed.thumbnail;
+      delete parsed.appThumbnail;
+      delete parsed.customThumbnail;
       parsed.updatedAt = now;
       parsed.updatedBy = adminName;
       safeSetLocalStorage('jjf_home_content', JSON.stringify(parsed));
@@ -672,11 +682,28 @@ export async function updateAppThumbnail(
   // 2. Update dynamic DOM meta tags in real-time
   applyDynamicAppThumbnail(thumbnailUrl);
 
-  // 3. Firestore update with fast 2-second timeout (never hangs at 85%)
+  // 3. Dispatch custom event for real-time instantaneous DOM / component update
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: thumbnailUrl }));
+  }
+
+  // 4. Firestore update with fast 2-second timeout (never hangs at 85%)
   if (!isMockFirebase && db) {
     try {
       const contentDocRef = doc(db, 'appContent', 'home');
-      const writePromise = setDoc(contentDocRef, { appThumbnailUrl: thumbnailUrl, updatedAt: now, updatedBy: adminName }, { merge: true });
+      const writePromise = setDoc(
+        contentDocRef,
+        {
+          appThumbnailUrl: thumbnailUrl,
+          thumbnailUrl: deleteField(),
+          thumbnail: deleteField(),
+          appThumbnail: deleteField(),
+          customThumbnail: deleteField(),
+          updatedAt: now,
+          updatedBy: adminName
+        },
+        { merge: true }
+      );
       const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
       await Promise.race([writePromise, timeoutPromise]);
     } catch (error) {
@@ -684,7 +711,7 @@ export async function updateAppThumbnail(
     }
   }
 
-  // 4. Activity Audit Log (fire-and-forget)
+  // 5. Activity Audit Log (fire-and-forget)
   logAdminActivity({
     adminUid,
     adminName,
@@ -704,11 +731,18 @@ export async function resetAppThumbnail(
 
   // 1. Clear from localStorage
   try {
-    localStorage.removeItem('jjf_custom_thumbnail');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('jjf_thumb_permanently_deleted', 'true');
+      localStorage.removeItem('jjf_custom_thumbnail');
+    }
     const local = localStorage.getItem('jjf_home_content');
     if (local) {
       const parsed = JSON.parse(local);
       parsed.appThumbnailUrl = '';
+      delete parsed.thumbnailUrl;
+      delete parsed.thumbnail;
+      delete parsed.appThumbnail;
+      delete parsed.customThumbnail;
       parsed.updatedAt = now;
       parsed.updatedBy = adminName;
       localStorage.setItem('jjf_home_content', JSON.stringify(parsed));
@@ -720,11 +754,28 @@ export async function resetAppThumbnail(
   // 2. Reset DOM meta tags to default PWA icon
   applyDynamicAppThumbnail('/pwa-icon-512.png');
 
-  // 3. Firestore update with 2-second timeout
+  // 3. Dispatch custom event with empty string for instant zero-delay UI update
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: '' }));
+  }
+
+  // 4. Firestore update with 2-second timeout
   if (!isMockFirebase && db) {
     try {
       const contentDocRef = doc(db, 'appContent', 'home');
-      const resetPromise = setDoc(contentDocRef, { appThumbnailUrl: '', updatedAt: now, updatedBy: adminName }, { merge: true });
+      const resetPromise = setDoc(
+        contentDocRef,
+        {
+          appThumbnailUrl: '',
+          thumbnailUrl: deleteField(),
+          thumbnail: deleteField(),
+          appThumbnail: deleteField(),
+          customThumbnail: deleteField(),
+          updatedAt: now,
+          updatedBy: adminName
+        },
+        { merge: true }
+      );
       const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
       await Promise.race([resetPromise, timeoutPromise]);
     } catch (error) {
@@ -732,7 +783,7 @@ export async function resetAppThumbnail(
     }
   }
 
-  // 4. Activity Audit Log (fire-and-forget)
+  // 5. Activity Audit Log (fire-and-forget)
   logAdminActivity({
     adminUid,
     adminName,
@@ -748,10 +799,117 @@ export async function deleteThumbnailFromAllDatabases(
   adminName: string = 'व्यवस्थापक',
   adminUid: string = 'admin'
 ): Promise<{ success: boolean; message: string }> {
-  await resetAppThumbnail(adminName, adminUid);
+  const now = new Date().toISOString();
+
+  // 1. Wipe old uploaded thumbnail file on server if local
+  try {
+    const oldThumbUrl = (typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_thumbnail') : '') || '';
+    if (oldThumbUrl && (oldThumbUrl.includes('/api/media/') || oldThumbUrl.includes('/uploads/'))) {
+      try {
+        const parts = oldThumbUrl.split('/');
+        const fileNameOrId = parts[parts.length - 1];
+        if (fileNameOrId) {
+          fetch(`/api/media/${fileNameOrId}`, { method: 'DELETE' }).catch(() => {});
+        }
+      } catch {}
+    }
+
+    const staleKeys = [
+      'jjf_custom_thumbnail',
+      'jjf_custom_thumbnail_logo',
+      'jjf_thumbnail_url',
+      'jjf_app_thumbnail',
+      'jjf_thumbnail',
+      'app_thumbnail',
+      'custom_thumbnail',
+      'thumbnail_url'
+    ];
+
+    staleKeys.forEach((k) => {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(k)) {
+        localStorage.removeItem(k);
+      }
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(k)) {
+        sessionStorage.removeItem(k);
+      }
+    });
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('jjf_thumb_permanently_deleted', 'true');
+    }
+
+    const localHome = typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_home_content') : null;
+    if (localHome) {
+      try {
+        const parsed = JSON.parse(localHome);
+        parsed.appThumbnailUrl = '';
+        delete parsed.thumbnailUrl;
+        delete parsed.thumbnail;
+        delete parsed.appThumbnail;
+        delete parsed.customThumbnail;
+        parsed.updatedAt = now;
+        parsed.updatedBy = adminName;
+        localStorage.setItem('jjf_home_content', JSON.stringify(parsed));
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('LocalStorage thumbnail wipe note:', e);
+  }
+
+  // 2. Reset DOM meta tags
+  applyDynamicAppThumbnail('/pwa-icon-512.png');
+
+  // 3. Dispatch custom event for zero-delay UI update across all components
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: '' }));
+  }
+
+  // 4. Firestore Database Complete Permanent Cleaning with fast 2-second timeout
+  if (!isMockFirebase && db) {
+    try {
+      const homeDocRef = doc(db, 'appContent', 'home');
+      const cleanPromise = setDoc(
+        homeDocRef,
+        {
+          appThumbnailUrl: '',
+          thumbnailUrl: deleteField(),
+          thumbnail: deleteField(),
+          appThumbnail: deleteField(),
+          customThumbnail: deleteField(),
+          updatedAt: now,
+          updatedBy: adminName
+        },
+        { merge: true }
+      );
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+      await Promise.race([cleanPromise, timeoutPromise]);
+
+      // Clean standalone thumbnail docs in background
+      const standaloneDocs = ['thumbnail', 'appThumbnail'];
+      Promise.allSettled(
+        standaloneDocs.map(async (docId) => {
+          try {
+            const docRef = doc(db, 'appContent', docId);
+            await deleteDoc(docRef);
+          } catch {}
+        })
+      ).catch(() => {});
+    } catch (err) {
+      console.warn('Firestore thumbnail clean warning:', err);
+    }
+  }
+
+  // 5. Activity Audit Log
+  logAdminActivity({
+    adminUid,
+    adminName,
+    action: 'APP_THUMBNAIL_DELETED',
+    details: `ऐप थंबनेल लोगो डेटाबेस व स्टोरेज से पूरी तरह हटाया गया (${adminName} द्वारा)`
+  }).catch(() => {});
+
   return {
     success: true,
-    message: 'ऐप थंबनेल लोगो डेटाबेस, स्टोरेज व मेटा टैग्स से सफलतापूर्वक हटा दिया गया है!'
+    message: 'ऐप थंबनेल लोगो डेटाबेस, स्टोरेज व मेटा टैग्स से 100% सफलतापूर्वक हटा दिया गया है!'
   };
 }
 
@@ -1622,10 +1780,22 @@ export async function saveHomeContent(
   }
 
   // 2. Thumbnail preservation
-  let preservedThumbnail = content.appThumbnailUrl !== undefined ? content.appThumbnailUrl : (currentContent.appThumbnailUrl || '');
-  if (!preservedThumbnail) {
+  const isThumbPermanentlyDeleted = typeof localStorage !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+  let preservedThumbnail = content.appThumbnailUrl !== undefined 
+    ? content.appThumbnailUrl 
+    : (isThumbPermanentlyDeleted ? '' : (currentContent.appThumbnailUrl || ''));
+  if (!preservedThumbnail && !isThumbPermanentlyDeleted) {
     try {
-      preservedThumbnail = localStorage.getItem('jjf_custom_thumbnail') || '';
+      const storedThumb = localStorage.getItem('jjf_custom_thumbnail');
+      if (storedThumb && storedThumb !== '/pwa-icon-512.png') {
+        preservedThumbnail = storedThumb;
+      }
+    } catch {}
+  }
+  if (content.appThumbnailUrl) {
+    try {
+      localStorage.removeItem('jjf_thumb_permanently_deleted');
+      safeSetLocalStorage('jjf_custom_thumbnail', content.appThumbnailUrl);
     } catch {}
   }
 

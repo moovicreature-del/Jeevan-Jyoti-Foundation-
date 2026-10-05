@@ -35,8 +35,15 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
           const parsed = JSON.parse(local);
           const customLogo = localStorage.getItem('jjf_custom_logo');
           if (customLogo) parsed.appLogoUrl = customLogo;
-          const customThumb = localStorage.getItem('jjf_custom_thumbnail');
-          if (customThumb) parsed.appThumbnailUrl = customThumb;
+          const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+          if (isThumbDeleted) {
+            parsed.appThumbnailUrl = '';
+          } else {
+            const customThumb = localStorage.getItem('jjf_custom_thumbnail');
+            if (customThumb && customThumb !== '/pwa-icon-512.png') {
+              parsed.appThumbnailUrl = customThumb;
+            }
+          }
           const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
           if (customSeal !== null) parsed.certificateSealUrl = customSeal;
           const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
@@ -44,14 +51,15 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
           return parsed;
         }
         const customLogo = localStorage.getItem('jjf_custom_logo');
-        const customThumb = localStorage.getItem('jjf_custom_thumbnail');
+        const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+        const customThumb = isThumbDeleted ? '' : localStorage.getItem('jjf_custom_thumbnail');
         const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
         const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
         if (customLogo || customThumb || customSeal) {
           return {
             ...DEFAULT_HOME_CONTENT,
             appLogoUrl: customLogo || '',
-            appThumbnailUrl: customThumb || '',
+            appThumbnailUrl: (customThumb && customThumb !== '/pwa-icon-512.png') ? customThumb : '',
             certificateSealUrl: customSeal || '',
             certificateSealVariant: (customSealVariant as any) || 'gold-crimson'
           };

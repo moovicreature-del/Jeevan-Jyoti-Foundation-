@@ -74,13 +74,15 @@ export const AppLogoManager: React.FC = () => {
   const [thumbPreviewUrl, setThumbPreviewUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const isPermanentlyDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+        if (isPermanentlyDeleted) return '';
         const stored = localStorage.getItem('jjf_custom_thumbnail');
-        if (stored) return stored;
+        if (stored && stored !== '/pwa-icon-512.png') return stored;
       } catch {
         // Ignore
       }
     }
-    return content?.appThumbnailUrl || '';
+    return (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') ? content.appThumbnailUrl : '';
   });
   const [thumbDirectUrlInput, setThumbDirectUrlInput] = useState<string>('');
   const [activeThumbPreviewTab, setActiveThumbPreviewTab] = useState<'whatsapp' | 'mobile_app' | 'browser'>('whatsapp');
@@ -115,11 +117,14 @@ export const AppLogoManager: React.FC = () => {
       setLogoPreviewUrl('');
     }
 
-    if (content?.appThumbnailUrl) {
+    const isThumbPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+    if (isThumbPermanentlyDeleted) {
+      setThumbPreviewUrl('');
+    } else if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
       setThumbPreviewUrl(content.appThumbnailUrl);
     } else if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('jjf_custom_thumbnail');
-      setThumbPreviewUrl(stored || '');
+      setThumbPreviewUrl((stored && stored !== '/pwa-icon-512.png') ? stored : '');
     } else {
       setThumbPreviewUrl('');
     }
@@ -138,10 +143,14 @@ export const AppLogoManager: React.FC = () => {
 
     const handleThumbChange = (e: CustomEvent<string>) => {
       const val = typeof e.detail === 'string' ? e.detail : '';
-      setThumbPreviewUrl(val);
-      if (!val) {
+      if (!val || val === '/pwa-icon-512.png') {
+        setThumbPreviewUrl('');
         setSelectedThumbFile(null);
         setThumbDirectUrlInput('');
+        const fileInput = document.getElementById('admin-app-thumbnail-file-input') as HTMLInputElement | null;
+        if (fileInput) fileInput.value = '';
+      } else {
+        setThumbPreviewUrl(val);
       }
     };
 
@@ -396,7 +405,11 @@ export const AppLogoManager: React.FC = () => {
     const adminUid = adminProfile?.uid || 'admin';
 
     let finalThumbUrl = thumbPreviewUrl;
-    if (!finalThumbUrl && !selectedThumbFile) {
+    if (thumbDirectUrlInput.trim()) {
+      finalThumbUrl = thumbDirectUrlInput.trim();
+    }
+
+    if (!selectedThumbFile && (!finalThumbUrl || finalThumbUrl === '/pwa-icon-512.png')) {
       toast.error('कृपया पहले कोई थंबनेल इमेज फ़ाइल चुनें या URL दर्ज करें!');
       return;
     }
@@ -416,6 +429,10 @@ export const AppLogoManager: React.FC = () => {
             updateProgress(mapped, message || 'थंबनेल अपलोड हो रहा है...', bytesDetail);
           }
         );
+      }
+
+      if (!finalThumbUrl || finalThumbUrl === '/pwa-icon-512.png') {
+        throw new Error('थंबनेल इमेज URL अमान्य है।');
       }
 
       updateProgress(85, 'मेटा टैग्स, OpenGraph, व्हाट्सएप शेयर कार्ड व PWA आइकन में थंबनेल लागू हो रहा है...');
@@ -533,9 +550,16 @@ export const AppLogoManager: React.FC = () => {
   };
 
   const isCustomLogoActive = Boolean(content?.appLogoUrl || logoPreviewUrl);
-  const isCustomThumbActive = Boolean(content?.appThumbnailUrl || thumbPreviewUrl);
+  const isCustomThumbActive = Boolean(
+    (content?.appThumbnailUrl && content.appThumbnailUrl.trim() !== '' && content.appThumbnailUrl !== '/pwa-icon-512.png') ||
+    (thumbPreviewUrl && thumbPreviewUrl.trim() !== '' && thumbPreviewUrl !== '/pwa-icon-512.png')
+  );
 
-  const resolvedThumbDisplay = thumbPreviewUrl || '/pwa-icon-512.png';
+  const resolvedThumbDisplay = (thumbPreviewUrl && thumbPreviewUrl.trim() !== '' && thumbPreviewUrl !== '/pwa-icon-512.png')
+    ? thumbPreviewUrl
+    : (content?.appThumbnailUrl && content.appThumbnailUrl.trim() !== '' && content.appThumbnailUrl !== '/pwa-icon-512.png')
+    ? content.appThumbnailUrl
+    : '/pwa-icon-512.png';
 
   return (
     <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
