@@ -32,7 +32,7 @@ export const CertificateOfficialSealManager: React.FC = () => {
   const [isApplying, setIsApplying] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-  const currentSealUrl = content?.certificateSealUrl || '';
+  const currentSealUrl = content?.certificateSealUrl || '/uploads/jjf_media_1791272687577_76347e15.jpg';
   const currentVariant = (content as any)?.certificateSealVariant || 'gold-crimson';
 
   useEffect(() => {

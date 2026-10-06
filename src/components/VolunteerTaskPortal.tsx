@@ -4,7 +4,7 @@ import { TaskRecord, Volunteer } from '../types';
 import { INITIAL_TASKS, INITIAL_VOLUNTEERS } from '../data/taskData';
 import { useLanguage } from '../context/LanguageContext';
 import { StructuredAddressSelector } from './StructuredAddressSelector';
-import { DEFAULT_STRUCTURED_ADDRESS, StructuredAddress } from '../data/locationData';
+import { EMPTY_STRUCTURED_ADDRESS, StructuredAddress } from '../data/locationData';
 import { CandidatePhotoUploader } from './CandidatePhotoUploader';
 import { formatCertificateNumber } from '../utils/certificateUtils';
 import { FOUNDATION_INFO } from '../data/foundationData';
@@ -43,9 +43,9 @@ export const VolunteerTaskPortal: React.FC<Props> = ({
   const [getUpdatesWhatsApp, setGetUpdatesWhatsApp] = useState<boolean>(true);
   const [newRelationType, setNewRelationType] = useState<'Father' | 'Husband' | 'Guardian'>('Father');
   const [newFather, setNewFather] = useState('');
-  const [newJoinDate, setNewJoinDate] = useState(() => getTodayDateString());
-  const [newArea, setNewArea] = useState('Education & Child Literacy');
-  const [regAddress, setRegAddress] = useState<StructuredAddress>(DEFAULT_STRUCTURED_ADDRESS);
+  const [newJoinDate, setNewJoinDate] = useState('');
+  const [newArea, setNewArea] = useState('');
+  const [regAddress, setRegAddress] = useState<StructuredAddress>(EMPTY_STRUCTURED_ADDRESS);
   const [regError, setRegError] = useState<string | null>(null);
 
   const handleRegisterVolunteer = (e: React.FormEvent) => {
@@ -554,7 +554,7 @@ export const VolunteerTaskPortal: React.FC<Props> = ({
                 />
 
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">{isHindi ? 'पूरा नाम (Full Name) *' : 'Full Name *'}</label>
+                  <label className="block font-bold text-gray-700 mb-1">{isHindi ? 'पूरा नाम (Full Name)' : 'Full Name'}</label>
                   <input
                     type="text"
                     required
@@ -651,6 +651,7 @@ export const VolunteerTaskPortal: React.FC<Props> = ({
                     onChange={(e) => setNewArea(e.target.value)}
                     className="w-full px-3 py-2 border rounded-xl bg-white"
                   >
+                    <option value="">{isHindi ? '-- सेवा क्षेत्र चुनें (Select Sector) --' : '-- Select Service Sector --'}</option>
                     <option value="Education & Child Literacy">Education & Child Literacy (शिक्षा सेवा)</option>
                     <option value="Food Security & Relief">Food Distribution & Relief (अन्नपूर्णा सेवा)</option>
                     <option value="Healthcare & Hygiene">Healthcare Camps (स्वास्थ्य रक्षा)</option>

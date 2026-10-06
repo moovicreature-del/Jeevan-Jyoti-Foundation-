@@ -162,6 +162,29 @@ app.post('/api/app-thumbnail', (req, res) => {
   res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
 });
 
+app.delete('/api/app-thumbnail', (_req, res) => {
+  serverAppThumbnailUrl = '';
+  res.json({ success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर से स्थायी रूप से हटा दिया गया है।' });
+});
+
+// Dynamic App Logo Engine
+let serverAppLogoUrl: string = '';
+
+app.get('/api/app-logo', (_req, res) => {
+  res.json({ success: true, appLogoUrl: serverAppLogoUrl });
+});
+
+app.post('/api/app-logo', (req, res) => {
+  const { logoUrl } = req.body || {};
+  serverAppLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
+  res.json({ success: true, appLogoUrl: serverAppLogoUrl });
+});
+
+app.delete('/api/app-logo', (_req, res) => {
+  serverAppLogoUrl = '';
+  res.json({ success: true, appLogoUrl: '', message: 'लोगो सर्वर से स्थायी रूप से हटा दिया गया है।' });
+});
+
 // Dynamic Web App Manifest - returns manifest with latest custom thumbnail
 app.get(['/manifest.json', '/api/manifest.json'], (req, res) => {
   const queryThumb = req.query.thumb as string | undefined;

@@ -552,8 +552,9 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
       return;
     }
 
-    const finalAmount = donCustomAmount ? parseFloat(donCustomAmount) : donAmount;
-    if (isNaN(finalAmount) || finalAmount <= 0) {
+    const parsedAmount = donCustomAmount ? parseFloat(donCustomAmount) : (typeof donAmount === 'number' ? donAmount : parseFloat(String(donAmount)));
+    const finalAmount = isNaN(parsedAmount) ? 0 : parsedAmount;
+    if (finalAmount <= 0) {
       setDonError('⚠️ कृपया वैध दान राशि दर्ज करें।');
       return;
     }
@@ -986,7 +987,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-gray-800 mb-1">
-                    पूर्ण नाम (Full Name) <span className="text-red-600">*</span>
+                    पूर्ण नाम (Full Name)
                   </label>
                   <input
                     type="text"
@@ -1415,7 +1416,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-black text-gray-800 mb-1">
-                    पूर्ण नाम (Full Name) <span className="text-red-600">*</span>
+                    पूर्ण नाम (Full Name)
                   </label>
                   <input
                     type="text"
@@ -1918,7 +1919,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-black text-gray-800 mb-1">
-                    पूर्ण नाम (Full Name) <span className="text-red-600">*</span>
+                    पूर्ण नाम (Full Name)
                   </label>
                   <input
                     type="text"
@@ -2428,7 +2429,7 @@ export const ProfessionalFormsPortal: React.FC<Props> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-gray-800 mb-1">
-                      दानदाता का पूरा नाम (Full Name) <span className="text-red-600">*</span>
+                      दानदाता का पूरा नाम (Full Name)
                     </label>
                     <input
                       type="text"

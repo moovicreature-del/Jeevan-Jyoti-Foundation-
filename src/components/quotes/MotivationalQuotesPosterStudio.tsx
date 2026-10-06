@@ -107,67 +107,11 @@ import {
 import { FOUNDATION_INFO } from '../../data/foundationData';
 import { BrandLogo } from '../common/BrandLogo';
 import { RoyalCertificateSeal } from '../common/RoyalCertificateSeal';
-
-// Official Certificate Seal SVG (Exact replica of RoyalCertificateSeal from official certificates with ribbon tails & caption)
-const JJF_OFFICIAL_SEAL_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg viewBox="0 0 200 256" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <path id="sealTopPath" d="M 28 100 A 72 72 0 0 1 172 100" fill="none" />
-    <path id="sealBottomPath" d="M 172 100 A 72 72 0 0 1 28 100" fill="none" />
-    <filter id="sealShadow" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#8B0000" flood-opacity="0.3"/>
-    </filter>
-  </defs>
-
-  <!-- Hanging Ribbon Tails -->
-  <g>
-    <path d="M 52 165 L 26 230 L 46 220 L 66 230 L 76 165 Z" fill="#8B0000" stroke="#D4AF37" stroke-width="1.8" />
-    <path d="M 148 165 L 128 230 L 148 220 L 168 230 L 140 165 Z" fill="#A52A2A" stroke="#D4AF37" stroke-width="1.8" />
-    <!-- Join Band -->
-    <rect x="68" y="160" width="64" height="15" rx="4" fill="#D4AF37" stroke="#8B0000" stroke-width="1.2" />
-    <text x="100" y="171" font-family="sans-serif" font-size="8.5" font-weight="900" fill="#8B0000" text-anchor="middle" letter-spacing="0.5">GOVT. REG.</text>
-  </g>
-
-  <!-- Outer Beaded / Cogged Ring -->
-  <circle cx="100" cy="100" r="94" fill="#FFFDF5" stroke="#D4AF37" stroke-width="3" filter="url(#sealShadow)"/>
-  <circle cx="100" cy="100" r="88" fill="none" stroke="#8B0000" stroke-width="2.5" />
-  <circle cx="100" cy="100" r="83" fill="none" stroke="#D4AF37" stroke-width="2" stroke-dasharray="4 3" />
-  <circle cx="100" cy="100" r="58" fill="none" stroke="#D4AF37" stroke-width="1.5" stroke-dasharray="2 2" />
-
-  <!-- Arched Organization Name -->
-  <text font-family="'Cinzel', serif, sans-serif" font-size="13" font-weight="900" fill="#8B0000" letter-spacing="2" text-anchor="middle">
-    <textPath href="#sealTopPath" startOffset="50%">JEEVAN JYOTI FOUNDATION</textPath>
-  </text>
-
-  <!-- Arched Reg / Ghazipur -->
-  <text font-family="sans-serif" font-size="11.5" font-weight="900" fill="#8B0000" letter-spacing="1.5" text-anchor="middle">
-    <textPath href="#sealBottomPath" startOffset="50%">★ GHAZIPUR • REG. 1827 ★</textPath>
-  </text>
-
-  <!-- Center Circular Medallion with JJF Logo -->
-  <circle cx="100" cy="100" r="34" fill="#FFFDE7" stroke="#D4AF37" stroke-width="2" />
-  <!-- Center Yogi Silhouette -->
-  <g transform="translate(74, 74) scale(0.104)">
-    <circle cx="250" cy="220" r="210" fill="#FFDE00" stroke="#2E1E6B" stroke-width="6"/>
-    <path d="M 105 295 A 150 150 0 1 1 395 295" fill="none" stroke="#FA7815" stroke-width="28"/>
-    <circle cx="250" cy="152" r="22" fill="#2E1E6B"/>
-    <path d="M 243 174 C 243 178, 230 188, 204 204 C 180 218, 160 248, 154 274 C 152 284, 158 292, 172 286 C 184 280, 198 266, 206 252 C 212 242, 216 232, 218 220 C 218 232, 218 248, 216 268 C 208 278, 182 290, 165 302 C 157 308, 163 318, 180 320 C 202 322, 235 316, 250 316 C 265 316, 298 322, 320 320 C 337 318, 343 308, 335 302 C 318 290, 292 278, 284 268 C 282 248, 282 232, 282 220 C 284 232, 288 242, 294 252 C 302 266, 316 280, 328 286 C 342 292, 348 284, 346 274 C 340 248, 320 218, 296 204 C 270 188, 257 178, 257 174 Z" fill="#2E1E6B"/>
-    <path d="M 250 495 C 246 435, 208 390, 138 344 C 90 338, 40 354, 24 358 C 36 378, 82 432, 148 464 C 190 484, 228 492, 250 495 Z" fill="#008844"/>
-    <path d="M 250 495 C 254 435, 292 390, 362 344 C 410 338, 460 354, 476 358 C 464 378, 418 432, 352 464 C 310 484, 272 492, 250 495 Z" fill="#008844"/>
-  </g>
-
-  <!-- Red Ribbon Badge across bottom center -->
-  <rect x="30" y="112" width="140" height="23" rx="11.5" fill="#8B0000" stroke="#D4AF37" stroke-width="1.8" />
-  <text x="100" y="128" font-family="'Cinzel', sans-serif" font-size="11" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">★ OFFICIAL SEAL ★</text>
-
-  <!-- Top-Right Verified Green Shield Checkmark -->
-  <circle cx="166" cy="36" r="14" fill="#059669" stroke="#FFFFFF" stroke-width="2.5" />
-  <path d="M 160 36 L 164 40 L 173 31" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
-
-  <!-- Bottom Certificate Caption: ऑफिशियल मुहर / प्रमाणित -->
-  <text x="100" y="249" font-family="'Noto Sans Devanagari', 'Mukta', sans-serif" font-size="9" font-weight="900" fill="#8B0000" text-anchor="middle" letter-spacing="1">ऑफिशियल मुहर / प्रमाणित</text>
-</svg>
-`)}`;
+import {
+  DEFAULT_OFFICIAL_SEAL_URL,
+  OFFICIAL_SEAL_BASE64_DATA_URL,
+  getActiveOfficialSealUrl
+} from '../../data/officialSealData';
 
 interface Props {
   onClose?: () => void;
@@ -1193,10 +1137,10 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
     // Foundation Official Certificate Seal Stamp on Right of Card
     // ("सुविचार वाले पार्ट में पोस्टर पर ऑफिशियल सील सेम वही रखे जो बाकी सर्टिफिकेट पर पट्टी वाली रहती है उससे थोड़ा भी अलग ना हो")
     if (includeWatermark) {
-      const sealW = Math.round(footerCardHeight * 0.72);
-      const sealH = Math.round(sealW * 1.28); // incorporates ribbon tails & official caption
-      const sealX = footerCardX + footerCardWidth - sealW - Math.round(footerCardWidth * 0.024);
-      const sealY = footerCardY + (footerCardHeight - sealH) / 2 - 2;
+      const sealDiam = Math.round(footerCardHeight * 0.70);
+      const sealX = footerCardX + footerCardWidth - sealDiam - Math.round(footerCardWidth * 0.024);
+      const centerX = sealX + sealDiam / 2;
+      const centerY = footerCardY + footerCardHeight * 0.42;
 
       // Vertical subtle golden separator divider
       ctx.strokeStyle = activeTheme.isLight ? 'rgba(217, 119, 6, 0.35)' : 'rgba(251, 191, 36, 0.35)';
@@ -1206,23 +1150,118 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
       ctx.lineTo(sealX - Math.round(footerCardWidth * 0.018), footerCardY + footerCardHeight * 0.84);
       ctx.stroke();
 
-      // Load & draw official certificate seal (exact replica from official certificates)
+      // Load & draw authentic uploaded official certificate seal in base64
       const sealImg = new Image();
       sealImg.crossOrigin = 'anonymous';
       await new Promise<void>((resolve) => {
+        const primarySrc = OFFICIAL_SEAL_BASE64_DATA_URL || getActiveOfficialSealUrl();
         sealImg.onload = () => resolve();
-        sealImg.onerror = () => resolve();
-        sealImg.src = JJF_OFFICIAL_SEAL_SVG;
+        sealImg.onerror = () => {
+          sealImg.onload = () => resolve();
+          sealImg.onerror = () => resolve();
+          sealImg.src = OFFICIAL_SEAL_BASE64_DATA_URL;
+        };
+        sealImg.src = primarySrc;
       });
 
+      ctx.save();
+      // 1. Royal Crimson & Gold Ribbon Tails Underneath
+      const ribbonTopY = centerY + sealDiam * 0.36;
+      // Left Ribbon Tail
+      ctx.fillStyle = '#8B0000';
+      ctx.strokeStyle = '#D4AF37';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(centerX - sealDiam * 0.16, ribbonTopY);
+      ctx.lineTo(centerX - sealDiam * 0.38, ribbonTopY + sealDiam * 0.38);
+      ctx.lineTo(centerX - sealDiam * 0.22, ribbonTopY + sealDiam * 0.30);
+      ctx.lineTo(centerX - sealDiam * 0.08, ribbonTopY + sealDiam * 0.38);
+      ctx.lineTo(centerX - sealDiam * 0.04, ribbonTopY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Right Ribbon Tail
+      ctx.fillStyle = '#A52A2A';
+      ctx.strokeStyle = '#D4AF37';
+      ctx.beginPath();
+      ctx.moveTo(centerX + sealDiam * 0.04, ribbonTopY);
+      ctx.lineTo(centerX + sealDiam * 0.08, ribbonTopY + sealDiam * 0.38);
+      ctx.lineTo(centerX + sealDiam * 0.22, ribbonTopY + sealDiam * 0.30);
+      ctx.lineTo(centerX + sealDiam * 0.38, ribbonTopY + sealDiam * 0.38);
+      ctx.lineTo(centerX + sealDiam * 0.16, ribbonTopY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Center Gold Band with "GOVT. REG."
+      const bandW = sealDiam * 0.44;
+      const bandH = sealDiam * 0.14;
+      ctx.fillStyle = '#D4AF37';
+      ctx.strokeStyle = '#8B0000';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.roundRect(centerX - bandW / 2, ribbonTopY - 2, bandW, bandH, [Math.round(bandH * 0.25)]);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#8B0000';
+      ctx.font = `900 ${Math.max(7, Math.round(sealDiam * 0.085))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('GOVT. REG.', centerX, ribbonTopY - 2 + bandH / 2);
+
+      // 2. Main Circular Royal Embossed Medal Frame
+      ctx.shadowColor = 'rgba(139, 0, 0, 0.35)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, sealDiam * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer Gold Rim
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#D4AF37';
+      ctx.lineWidth = Math.max(2.5, Math.round(sealDiam * 0.04));
+      ctx.stroke();
+
+      // Inner Crimson Stroke
+      ctx.strokeStyle = '#8B0000';
+      ctx.lineWidth = Math.max(1.8, Math.round(sealDiam * 0.025));
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, sealDiam * 0.44, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Authentic Uploaded Seal Image (1:1 circular clipped)
       if (sealImg.complete && sealImg.naturalWidth > 0) {
         ctx.save();
-        ctx.shadowColor = 'rgba(139, 0, 0, 0.30)';
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 3;
-        ctx.drawImage(sealImg, sealX, sealY, sealW, sealH);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, sealDiam * 0.42, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(sealImg, centerX - sealDiam * 0.42, centerY - sealDiam * 0.42, sealDiam * 0.84, sealDiam * 0.84);
         ctx.restore();
       }
+
+      // 4. Verified Security Checkmark Shield on Top-Right
+      const checkR = Math.max(7, Math.round(sealDiam * 0.12));
+      const checkX = centerX + sealDiam * 0.36;
+      const checkY = centerY - sealDiam * 0.36;
+      ctx.fillStyle = '#059669';
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = Math.max(1.5, Math.round(checkR * 0.25));
+      ctx.beginPath();
+      ctx.arc(checkX, checkY, checkR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `bold ${Math.round(checkR * 1.2)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✓', checkX, checkY + 1);
+
+      ctx.restore();
     }
 
     // Bottom border strip was moved to the top (Bottom details removed as requested)

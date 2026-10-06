@@ -221,7 +221,7 @@ export const DEFAULT_HOME_CONTENT: AppHomeContent = {
   bannerTitle: 'सशक्त ग़ाज़ीपुर, समृद्ध समाज',
   bannerSubtitle: 'हमारे सेवा अभियानों से जुड़ें और समाज निर्माण में अपना योगदान दें',
   appLogoUrl: '',
-  certificateSealUrl: '',
+  certificateSealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg',
   certificateSealVariant: 'gold-crimson',
   updatedBy: 'सिस्टम एडमिन',
   updatedAt: new Date().toISOString()
@@ -329,56 +329,50 @@ export async function optimizeImageFile(file: File, maxDim = 800, quality = 0.9)
 function sanitizeContentData(raw: any): AppHomeContent {
   const merged: AppHomeContent = { ...DEFAULT_HOME_CONTENT, ...raw };
   
-  // 1. Check custom logo - if permanently deleted and no new logo is supplied, keep strictly empty
-  let isPermanentlyDeleted = false;
-  try {
-    isPermanentlyDeleted = localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
-  } catch {
-    // Ignore
-  }
+  // 1. Check custom logo
+  const rawLogo = typeof raw?.appLogoUrl === 'string' ? raw.appLogoUrl.trim() : (typeof raw?.logoUrl === 'string' ? raw.logoUrl.trim() : '');
+  const isLogoPermanentlyDeleted = typeof localStorage !== 'undefined' && localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
 
-  if (isPermanentlyDeleted) {
-    merged.appLogoUrl = '';
-  } else if (raw?.appLogoUrl || raw?.logoUrl) {
-    merged.appLogoUrl = raw.appLogoUrl || raw.logoUrl;
-  } else {
+  if (rawLogo) {
+    // If a new active logo exists in database, it overrides any old delete flag!
+    merged.appLogoUrl = rawLogo;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('jjf_logo_permanently_deleted');
+    }
+  } else if (!isLogoPermanentlyDeleted) {
     try {
-      const localLogo = localStorage.getItem('jjf_custom_logo');
-      if (localLogo) {
-        merged.appLogoUrl = localLogo;
-      } else {
-        merged.appLogoUrl = '';
-      }
+      const localLogo = localStorage.getItem('jjf_custom_logo') || '';
+      merged.appLogoUrl = localLogo.trim();
     } catch {
       merged.appLogoUrl = '';
     }
+  } else {
+    merged.appLogoUrl = '';
   }
 
   // 1b. Check custom app thumbnail logo
-  let isThumbPermanentlyDeleted = false;
-  try {
-    isThumbPermanentlyDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-  } catch {
-    // Ignore
-  }
+  const rawThumb = typeof raw?.appThumbnailUrl === 'string' && raw.appThumbnailUrl !== '/pwa-icon-512.png'
+    ? raw.appThumbnailUrl.trim()
+    : typeof raw?.thumbnailUrl === 'string' && raw.thumbnailUrl !== '/pwa-icon-512.png'
+    ? raw.thumbnailUrl.trim()
+    : '';
+  const isThumbPermanentlyDeleted = typeof localStorage !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
 
-  if (isThumbPermanentlyDeleted) {
-    merged.appThumbnailUrl = '';
-  } else if (raw?.appThumbnailUrl !== undefined) {
-    merged.appThumbnailUrl = (raw.appThumbnailUrl && raw.appThumbnailUrl !== '/pwa-icon-512.png') ? raw.appThumbnailUrl : '';
-  } else if (raw?.thumbnailUrl) {
-    merged.appThumbnailUrl = (raw.thumbnailUrl && raw.thumbnailUrl !== '/pwa-icon-512.png') ? raw.thumbnailUrl : '';
-  } else {
+  if (rawThumb) {
+    // If a new active thumbnail exists in database, it overrides any old delete flag!
+    merged.appThumbnailUrl = rawThumb;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('jjf_thumb_permanently_deleted');
+    }
+  } else if (!isThumbPermanentlyDeleted) {
     try {
-      const localThumb = localStorage.getItem('jjf_custom_thumbnail');
-      if (localThumb && localThumb !== '/pwa-icon-512.png') {
-        merged.appThumbnailUrl = localThumb;
-      } else {
-        merged.appThumbnailUrl = '';
-      }
+      const localThumb = localStorage.getItem('jjf_custom_thumbnail') || '';
+      merged.appThumbnailUrl = (localThumb !== '/pwa-icon-512.png') ? localThumb.trim() : '';
     } catch {
       merged.appThumbnailUrl = '';
     }
+  } else {
+    merged.appThumbnailUrl = '';
   }
 
   // 1c. Check custom official certificate seal & variant
@@ -387,11 +381,13 @@ function sanitizeContentData(raw: any): AppHomeContent {
   } else {
     try {
       const localSeal = localStorage.getItem('jjf_custom_certificate_seal');
-      if (localSeal) {
+      if (localSeal && !localSeal.includes('old')) {
         merged.certificateSealUrl = localSeal;
+      } else {
+        merged.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
       }
     } catch {
-      // Ignore
+      merged.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
     }
   }
 
@@ -1109,12 +1105,12 @@ export async function resetCertificateSeal(
 
   // 1. Clear from localStorage
   try {
-    localStorage.removeItem('jjf_custom_certificate_seal');
+    safeSetLocalStorage('jjf_custom_certificate_seal', '/uploads/jjf_media_1791272687577_76347e15.jpg');
     safeSetLocalStorage('jjf_custom_certificate_seal_variant', 'gold-crimson');
     const local = localStorage.getItem('jjf_home_content');
     if (local) {
       const parsed = JSON.parse(local);
-      parsed.certificateSealUrl = '';
+      parsed.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
       parsed.certificateSealVariant = 'gold-crimson';
       parsed.updatedAt = now;
       parsed.updatedBy = adminName;
@@ -1127,7 +1123,7 @@ export async function resetCertificateSeal(
   // 2. Dispatch custom event
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-seal-changed', {
-      detail: { sealUrl: '', sealVariant: 'gold-crimson' }
+      detail: { sealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg', sealVariant: 'gold-crimson' }
     }));
   }
 
@@ -1138,7 +1134,7 @@ export async function resetCertificateSeal(
       const resetPromise = setDoc(
         contentDocRef,
         {
-          certificateSealUrl: '',
+          certificateSealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg',
           certificateSealVariant: 'gold-crimson',
           updatedAt: now,
           updatedBy: adminName

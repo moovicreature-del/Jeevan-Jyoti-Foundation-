@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useId, useMemo } from 'react';
-import { CheckCircle2, ShieldCheck, Award } from 'lucide-react';
-import { BrandLogo } from './BrandLogo';
-import { FOUNDATION_INFO } from '../../data/foundationData';
+import { CheckCircle2 } from 'lucide-react';
 import { useHomeContent } from '../../context/HomeContentContext';
+import {
+  DEFAULT_OFFICIAL_SEAL_URL,
+  OFFICIAL_SEAL_BASE64_DATA_URL,
+  getActiveOfficialSealUrl
+} from '../../data/officialSealData';
 
 interface RoyalCertificateSealProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'auto' | 'responsive' | number;
@@ -15,10 +18,8 @@ interface RoyalCertificateSealProps {
 
 /**
  * RoyalCertificateSeal
- * High-definition Vector & Custom Image Royal Embossed Seal for Certificates & Official Awards
- * Features outer gold filigree serrated ring, crimson accent, foundation emblem or custom seal,
- * official registration stars, and authentic ribbon tails.
- * Supports auto-size adjustment based on certificate canvas shape and size.
+ * High-definition Official Embossed Seal for Certificates, Awards, and Posters
+ * Permanently uses the authentic uploaded official foundation seal across all documents.
  */
 export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
   size = 'auto',
@@ -28,25 +29,13 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
   style,
   customSealUrl
 }) => {
-  const rawId = useId();
-  const safeId = useMemo(() => rawId.replace(/[^a-zA-Z0-9_-]/g, '_'), [rawId]);
-  const topPathId = `seal_top_path_${safeId}`;
-  const bottomPathId = `seal_bottom_path_${safeId}`;
-
   // Global Context & Local Storage Integration for Dynamic Seal
   const homeContext = useHomeContent();
   const contextSeal = homeContext?.content?.certificateSealUrl || '';
   const contextVariant = (homeContext?.content as any)?.certificateSealVariant || 'gold-crimson';
 
   const [activeSealUrl, setActiveSealUrl] = useState<string>(() => {
-    if (customSealUrl !== undefined && customSealUrl !== '') return customSealUrl;
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('jjf_custom_certificate_seal');
-        if (stored) return stored;
-      } catch {}
-    }
-    return contextSeal || '';
+    return getActiveOfficialSealUrl(customSealUrl || contextSeal);
   });
 
   const [activeVariant, setActiveVariant] = useState<'gold-crimson' | 'royal-gold' | 'emerald-gold'>(() => {
@@ -66,13 +55,9 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
 
   // Synchronize when props or context changes
   useEffect(() => {
-    if (customSealUrl !== undefined) {
-      setActiveSealUrl(customSealUrl);
-      setSealImgFailed(false);
-    } else if (contextSeal !== undefined) {
-      setActiveSealUrl(contextSeal);
-      setSealImgFailed(false);
-    }
+    const resolved = getActiveOfficialSealUrl(customSealUrl || contextSeal);
+    setActiveSealUrl(resolved);
+    setSealImgFailed(false);
   }, [customSealUrl, contextSeal]);
 
   useEffect(() => {
@@ -87,12 +72,12 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
   useEffect(() => {
     const handleSealChange = (e: CustomEvent<any>) => {
       const detail = e.detail;
-      if (typeof detail === 'string') {
-        setActiveSealUrl(detail);
+      if (typeof detail === 'string' && detail.trim()) {
+        setActiveSealUrl(detail.trim());
         setSealImgFailed(false);
       } else if (detail && typeof detail === 'object') {
-        if (detail.sealUrl !== undefined) {
-          setActiveSealUrl(detail.sealUrl);
+        if (detail.sealUrl && typeof detail.sealUrl === 'string' && detail.sealUrl.trim()) {
+          setActiveSealUrl(detail.sealUrl.trim());
           setSealImgFailed(false);
         }
         if (detail.sealVariant && ['gold-crimson', 'royal-gold', 'emerald-gold'].includes(detail.sealVariant)) {
@@ -179,7 +164,10 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
     }
   }[variant];
 
-  const hasCustomSealImage = Boolean(activeSealUrl && !sealImgFailed);
+  // The effective image source: authentic uploaded official seal in base64 or custom active URL
+  const effectiveImgSrc = (activeSealUrl && activeSealUrl.startsWith('data:'))
+    ? activeSealUrl
+    : (sealImgFailed ? OFFICIAL_SEAL_BASE64_DATA_URL : (activeSealUrl && !activeSealUrl.includes('old') ? activeSealUrl : OFFICIAL_SEAL_BASE64_DATA_URL));
 
   return (
     <div
@@ -197,7 +185,7 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
         <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />
       </div>
 
-      {/* Main Circular Royal Embossed Seal */}
+      {/* Main Circular Royal Embossed Seal - Permanently displays uploaded official seal */}
       <div
         className="relative rounded-full flex flex-col items-center justify-center text-center shadow-lg transition-transform shrink-0 overflow-hidden"
         style={{
@@ -206,137 +194,26 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
           aspectRatio: '1 / 1',
           maxWidth: `${dimensions.seal}px`,
           maxHeight: `${dimensions.seal}px`,
-          backgroundColor: colors.bgCenter,
-          border: `3px solid ${colors.rimGold}`,
+          backgroundColor: '#FFFFFF',
+          border: `2.5px solid ${colors.rimGold}`,
           boxShadow: `0 0 0 2px ${colors.crimsonDark}, 0 4px 12px rgba(139, 0, 0, 0.25)`
         }}
       >
-        {hasCustomSealImage ? (
-          <div className="relative w-full h-full p-1 flex items-center justify-center bg-white/95 rounded-full overflow-hidden">
-            <img
-              src={activeSealUrl}
-              alt="Official Certificate Seal"
-              crossOrigin="anonymous"
-              className="w-full h-full object-contain pointer-events-none drop-shadow-xs"
-              onError={() => setSealImgFailed(true)}
-            />
-          </div>
-        ) : (
-          <>
-            {/* SVG Serrated Gold Border & Curved Ring Text */}
-            <svg
-              viewBox="0 0 200 200"
-              className="absolute inset-0 w-full h-full pointer-events-none"
-            >
-              <defs>
-                {/* Top Text Path */}
-                <path
-                  id={topPathId}
-                  d="M 28 100 A 72 72 0 0 1 172 100"
-                  fill="none"
-                />
-                {/* Bottom Text Path */}
-                <path
-                  id={bottomPathId}
-                  d="M 172 100 A 72 72 0 0 1 28 100"
-                  fill="none"
-                />
-              </defs>
-
-              {/* Decorative Outer Beaded / Cogged Ring */}
-              <circle
-                cx="100"
-                cy="100"
-                r="94"
-                fill="none"
-                stroke={colors.rimGold}
-                strokeWidth="2"
-                strokeDasharray="4 3"
-              />
-              <circle
-                cx="100"
-                cy="100"
-                r="88"
-                fill="none"
-                stroke={colors.crimsonDark}
-                strokeWidth="1.5"
-              />
-              <circle
-                cx="100"
-                cy="100"
-                r="60"
-                fill="none"
-                stroke={colors.rimGold}
-                strokeWidth="1.5"
-                strokeDasharray="2 2"
-              />
-
-              {/* Top Text: Organization Name */}
-              <text
-                fontSize="14"
-                fontWeight="900"
-                fill={colors.crimsonDark}
-                letterSpacing="2.5"
-                textAnchor="middle"
-              >
-                <textPath
-                  href={`#${topPathId}`}
-                  xlinkHref={`#${topPathId}`}
-                  startOffset="50%"
-                >
-                  JEEVAN JYOTI FOUNDATION
-                </textPath>
-              </text>
-
-              {/* Bottom Text: Reg No & Location */}
-              <text
-                fontSize="12.5"
-                fontWeight="800"
-                fill={colors.crimsonDark}
-                letterSpacing="1.8"
-                textAnchor="middle"
-              >
-                <textPath
-                  href={`#${bottomPathId}`}
-                  xlinkHref={`#${bottomPathId}`}
-                  startOffset="50%"
-                >
-                  ★ GHAZIPUR • REG. 1827 ★
-                </textPath>
-              </text>
-            </svg>
-
-            {/* Center Emblem with Foundation Logo */}
-            <div
-              className="relative z-10 rounded-full flex flex-col items-center justify-center p-1 bg-white/95 shadow-inner"
-              style={{
-                width: `${dimensions.logo + 16}px`,
-                height: `${dimensions.logo + 16}px`,
-                border: `1.5px solid ${colors.rimGold}`
-              }}
-            >
-              <div className="w-full h-full flex items-center justify-center">
-                <BrandLogo size={dimensions.logo} className="w-full h-full object-contain" />
-              </div>
-            </div>
-
-            {/* Center Ribbon Title */}
-            <div
-              className="absolute bottom-4.5 z-10 px-2 py-0.5 rounded-full font-black tracking-widest uppercase shadow-xs flex items-center gap-0.5"
-              style={{
-                backgroundColor: colors.crimsonDark,
-                color: '#FFFFFF',
-                border: `1px solid ${colors.rimGold}`,
-                fontSize: `${dimensions.fontCenter}px`,
-                lineHeight: 1
-              }}
-            >
-              <span>★</span>
-              <span>OFFICIAL SEAL</span>
-              <span>★</span>
-            </div>
-          </>
-        )}
+        <div className="relative w-full h-full p-0.5 flex items-center justify-center bg-white rounded-full overflow-hidden">
+          <img
+            data-official-seal="true"
+            src={effectiveImgSrc}
+            alt="Official Certificate Seal"
+            crossOrigin="anonymous"
+            className="w-full h-full object-contain pointer-events-none drop-shadow-xs"
+            onError={() => {
+              if (!sealImgFailed) {
+                setSealImgFailed(true);
+                setActiveSealUrl(OFFICIAL_SEAL_BASE64_DATA_URL);
+              }
+            }}
+          />
+        </div>
       </div>
 
       {/* Royal Gold Ribbon Tails Underneath */}

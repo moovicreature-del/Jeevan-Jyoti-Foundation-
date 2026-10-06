@@ -45,7 +45,11 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
             }
           }
           const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
-          if (customSeal !== null) parsed.certificateSealUrl = customSeal;
+          if (customSeal !== null && customSeal.trim() && !customSeal.includes('old')) {
+            parsed.certificateSealUrl = customSeal;
+          } else {
+            parsed.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
+          }
           const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
           if (customSealVariant) parsed.certificateSealVariant = customSealVariant as any;
           return parsed;
@@ -54,13 +58,14 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
         const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
         const customThumb = isThumbDeleted ? '' : localStorage.getItem('jjf_custom_thumbnail');
         const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
+        const validSeal = customSeal && !customSeal.includes('old') ? customSeal : '/uploads/jjf_media_1791272687577_76347e15.jpg';
         const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
         if (customLogo || customThumb || customSeal) {
           return {
             ...DEFAULT_HOME_CONTENT,
             appLogoUrl: customLogo || '',
             appThumbnailUrl: (customThumb && customThumb !== '/pwa-icon-512.png') ? customThumb : '',
-            certificateSealUrl: customSeal || '',
+            certificateSealUrl: validSeal,
             certificateSealVariant: (customSealVariant as any) || 'gold-crimson'
           };
         }
