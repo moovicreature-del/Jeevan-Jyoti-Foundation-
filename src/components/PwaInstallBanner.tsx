@@ -20,15 +20,20 @@ export const PwaInstallBanner: React.FC = () => {
   });
 
   useEffect(() => {
-    const isDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-    if (isDeleted) {
-      setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
-    } else if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
+    if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
       setActiveThumbnail(content.appThumbnailUrl);
-    } else if (content?.appLogoUrl) {
-      setActiveThumbnail(content.appLogoUrl);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('jjf_thumb_permanently_deleted');
+      }
     } else {
-      setActiveThumbnail('/pwa-icon-512.png');
+      const isDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+      if (isDeleted) {
+        setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
+      } else if (content?.appLogoUrl) {
+        setActiveThumbnail(content.appLogoUrl);
+      } else {
+        setActiveThumbnail('/pwa-icon-512.png');
+      }
     }
   }, [content?.appThumbnailUrl, content?.appLogoUrl]);
 
@@ -37,6 +42,9 @@ export const PwaInstallBanner: React.FC = () => {
       const newThumb = typeof e.detail === 'string' ? e.detail : '';
       if (newThumb && newThumb !== '/pwa-icon-512.png') {
         setActiveThumbnail(newThumb);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('jjf_thumb_permanently_deleted');
+        }
       } else {
         setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
       }

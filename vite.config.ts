@@ -61,6 +61,32 @@ if (typeof devUploadCleanupInterval?.unref === 'function') {
 // In-memory OTP storage for Vite dev mode
 const devOtpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
 let devAppThumbnailUrl: string = '';
+let devAppLogoUrl: string = '';
+
+function deleteDevUploadedMediaByUrl(targetUrl?: string): boolean {
+  if (!targetUrl || typeof targetUrl !== 'string') return false;
+  try {
+    const clean = targetUrl.split('?')[0].trim();
+    const parts = clean.split('/');
+    const fileName = parts[parts.length - 1];
+    if (!fileName) return false;
+    const cleanId = fileName.replace(/\.[^/.]+$/, '');
+    devMediaStore.delete(cleanId);
+    if (fs.existsSync(UPLOADS_DIR)) {
+      const files = fs.readdirSync(UPLOADS_DIR);
+      const matches = files.filter((f) => f.startsWith(cleanId) || f === fileName);
+      for (const m of matches) {
+        try {
+          fs.unlinkSync(path.join(UPLOADS_DIR, m));
+        } catch {}
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Vite] deleteDevUploadedMediaByUrl warning:', err);
+    return false;
+  }
+}
 
 // Helper to mask phone numbers in server console logs (e.g., +91XXXXXX1234) for privacy
 function maskPhone(phone: string): string {
@@ -140,6 +166,9 @@ function streamMediaResponse(req: any, res: any, buffer: Buffer, mimeType: strin
   const size = buffer.length;
   const range = req.headers.range;
 
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
@@ -181,8 +210,20 @@ function apiDevServerPlugin(): Plugin {
 
         // Direct static media serving for /uploads/
         if (req.url.startsWith('/uploads/')) {
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204;
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', '*');
+            return res.end();
+          }
+
           const cleanUrl = req.url.split('?')[0];
-          const fileName = path.basename(cleanUrl);
+          let fileName = path.basename(cleanUrl);
+          try {
+            fileName = decodeURIComponent(fileName);
+          } catch {}
+
           const filePath = path.join(UPLOADS_DIR, fileName);
           if (fs.existsSync(filePath)) {
             try {
@@ -193,11 +234,48 @@ function apiDevServerPlugin(): Plugin {
               console.warn('[ViteUploads] Read error:', err);
             }
           }
+          // In-memory fallback if file write was delayed or in RAM
+          const cleanId = fileName.replace(/\.[^/.]+$/, '');
+          const memItem = devMediaStore.get(cleanId);
+          if (memItem) {
+            return streamMediaResponse(req, res, memItem.buffer, memItem.mimeType);
+          }
+          // Also check by partial match in UPLOADS_DIR
+          try {
+            if (fs.existsSync(UPLOADS_DIR)) {
+              const allFiles = fs.readdirSync(UPLOADS_DIR);
+              const matched = allFiles.find(f => f.startsWith(cleanId) || f === fileName || f.includes(cleanId));
+              if (matched) {
+                const fileBuf = fs.readFileSync(path.join(UPLOADS_DIR, matched));
+                const mime = getMimeTypeFromExt(path.extname(matched));
+                return streamMediaResponse(req, res, fileBuf, mime);
+              }
+            }
+          } catch {}
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.statusCode = 404;
+          return res.end('Media not found');
         }
 
         // Direct media streaming for /api/media/:mediaId
         if (req.url.startsWith('/api/media/')) {
-          const cleanId = req.url.replace('/api/media/', '').split('?')[0].replace(/\.[^/.]+$/, '');
+          const rawParam = req.url.replace('/api/media/', '').split('?')[0];
+          const cleanId = rawParam.replace(/\.[^/.]+$/, '');
+          if (req.method === 'DELETE') {
+            devMediaStore.delete(cleanId);
+            try {
+              if (fs.existsSync(UPLOADS_DIR)) {
+                const files = fs.readdirSync(UPLOADS_DIR);
+                const matches = files.filter((f) => f.startsWith(cleanId) || f === rawParam);
+                for (const match of matches) {
+                  try {
+                    fs.unlinkSync(path.join(UPLOADS_DIR, match));
+                  } catch {}
+                }
+              }
+            } catch {}
+            return sendJson(200, { success: true, message: 'मीडिया फ़ाइल सफलतापूर्वक हटा दी गई।' });
+          }
           const item = devMediaStore.get(cleanId);
           if (item) {
             return streamMediaResponse(req, res, item.buffer, item.mimeType);
@@ -288,7 +366,43 @@ function apiDevServerPlugin(): Plugin {
             devAppThumbnailUrl = typeof body?.thumbnailUrl === 'string' ? body.thumbnailUrl.trim() : '';
             return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
           }
+          if (req.method === 'DELETE') {
+            let targetUrl = devAppThumbnailUrl;
+            try {
+              const u = new URL(req.url, 'http://localhost');
+              const q = u.searchParams.get('url');
+              if (q) targetUrl = q;
+            } catch {}
+            if (targetUrl) {
+              deleteDevUploadedMediaByUrl(targetUrl);
+            }
+            devAppThumbnailUrl = '';
+            return sendJson(200, { success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
+          }
           return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
+        }
+
+        // Dynamic app logo sync endpoint
+        if (req.url?.startsWith('/api/app-logo')) {
+          if (req.method === 'POST') {
+            const body = await getBody();
+            devAppLogoUrl = typeof body?.logoUrl === 'string' ? body.logoUrl.trim() : '';
+            return sendJson(200, { success: true, appLogoUrl: devAppLogoUrl });
+          }
+          if (req.method === 'DELETE') {
+            let targetUrl = devAppLogoUrl;
+            try {
+              const u = new URL(req.url, 'http://localhost');
+              const q = u.searchParams.get('url');
+              if (q) targetUrl = q;
+            } catch {}
+            if (targetUrl) {
+              deleteDevUploadedMediaByUrl(targetUrl);
+            }
+            devAppLogoUrl = '';
+            return sendJson(200, { success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
+          }
+          return sendJson(200, { success: true, appLogoUrl: devAppLogoUrl });
         }
 
         // 1. POST /api/send-otp-sms
@@ -750,7 +864,7 @@ function apiDevServerPlugin(): Plugin {
         }
 
         // 7. POST /api/upload-direct (Direct file upload for logos, photos, seals)
-        if (req.url === '/api/upload-direct' && req.method === 'POST') {
+        if ((req.url === '/api/upload-direct' || req.url?.startsWith('/api/upload-direct?')) && req.method === 'POST') {
           try {
             const body = await getBody();
             const { data, fileName, fileType } = body;
@@ -799,7 +913,7 @@ function apiDevServerPlugin(): Plugin {
         }
 
         // 8. POST /api/upload-chunk (Chunked upload for HD Videos & large files)
-        if (req.url === '/api/upload-chunk' && req.method === 'POST') {
+        if ((req.url === '/api/upload-chunk' || req.url?.startsWith('/api/upload-chunk?')) && req.method === 'POST') {
           try {
             const body = await getBody();
             const { uploadId, chunkIndex, totalChunks, fileName, fileType, chunkData, totalSize } = body;
@@ -843,7 +957,7 @@ function apiDevServerPlugin(): Plugin {
         }
 
         // 9. POST /api/upload-complete (Assemble chunked upload and persist)
-        if (req.url === '/api/upload-complete' && req.method === 'POST') {
+        if ((req.url === '/api/upload-complete' || req.url?.startsWith('/api/upload-complete?')) && req.method === 'POST') {
           try {
             const body = await getBody();
             const { uploadId, fileName, fileType } = body;
@@ -944,7 +1058,10 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    watch: {
+      ignored: ['**/public/uploads/**', '**/uploads/**', '**/node_modules/**']
+    }
   },
   build: {
     target: 'esnext',

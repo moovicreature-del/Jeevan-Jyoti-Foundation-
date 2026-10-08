@@ -507,18 +507,39 @@ export async function updateAppLogo(
     console.warn('LocalStorage save logo warning:', e);
   }
 
-  // 2. Dispatch custom event for real-time instantaneous DOM / component update
+  // 2. Notify server logo endpoint
+  try {
+    fetch('/api/app-logo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logoUrl })
+    }).catch(() => {});
+  } catch {}
+
+  // 3. Dispatch custom event for real-time instantaneous DOM / component update
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-logo-changed', { detail: logoUrl }));
   }
 
-  // 3. Firestore update with fast 2-second timeout (never blocks UI or stalls at 85%)
+  // 4. Firestore update with fast 2-second timeout (never blocks UI or stalls at 85%)
   if (!isMockFirebase && db) {
     try {
       const contentDocRef = doc(db, 'appContent', 'home');
-      const writePromise = setDoc(contentDocRef, { appLogoUrl: logoUrl, updatedAt: now, updatedBy: adminName }, { merge: true });
+      const writePromise = setDoc(
+        contentDocRef,
+        {
+          appLogoUrl: logoUrl,
+          logoUrl: logoUrl,
+          updatedAt: now,
+          updatedBy: adminName
+        },
+        { merge: true }
+      );
       const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
       await Promise.race([writePromise, timeoutPromise]);
+
+      // Also sync standalone logo document
+      setDoc(doc(db, 'appContent', 'logo'), { appLogoUrl: logoUrl, logoUrl: logoUrl, updatedAt: now, updatedBy: adminName }, { merge: true }).catch(() => {});
     } catch (error) {
       console.warn('Firestore logo update notice (saved locally):', error);
     }
@@ -787,15 +808,24 @@ export async function updateAppThumbnail(
     console.warn('LocalStorage save thumbnail warning:', e);
   }
 
-  // 2. Update dynamic DOM meta tags in real-time
+  // 2. Notify server PWA manifest & thumbnail endpoint
+  try {
+    fetch('/api/app-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thumbnailUrl })
+    }).catch(() => {});
+  } catch {}
+
+  // 3. Update dynamic DOM meta tags in real-time
   applyDynamicAppThumbnail(thumbnailUrl);
 
-  // 3. Dispatch custom event for real-time instantaneous DOM / component update
+  // 4. Dispatch custom event for real-time instantaneous DOM / component update
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: thumbnailUrl }));
   }
 
-  // 4. Firestore update with fast 2-second timeout (never hangs at 85%)
+  // 5. Firestore update with fast 2-second timeout (never hangs at 85%)
   if (!isMockFirebase && db) {
     try {
       const contentDocRef = doc(db, 'appContent', 'home');
@@ -803,10 +833,7 @@ export async function updateAppThumbnail(
         contentDocRef,
         {
           appThumbnailUrl: thumbnailUrl,
-          thumbnailUrl: deleteField(),
-          thumbnail: deleteField(),
-          appThumbnail: deleteField(),
-          customThumbnail: deleteField(),
+          thumbnailUrl: thumbnailUrl,
           updatedAt: now,
           updatedBy: adminName
         },
@@ -814,6 +841,9 @@ export async function updateAppThumbnail(
       );
       const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
       await Promise.race([writePromise, timeoutPromise]);
+
+      // Also sync standalone thumbnail document
+      setDoc(doc(db, 'appContent', 'thumbnail'), { appThumbnailUrl: thumbnailUrl, thumbnailUrl: thumbnailUrl, updatedAt: now, updatedBy: adminName }, { merge: true }).catch(() => {});
     } catch (error) {
       console.warn('Firestore thumbnail update notice (saved locally):', error);
     }
@@ -905,21 +935,27 @@ export async function resetAppThumbnail(
  */
 export async function deleteThumbnailFromAllDatabases(
   adminName: string = 'व्यवस्थापक',
-  adminUid: string = 'admin'
+  adminUid: string = 'admin',
+  activeThumbUrlToClean?: string
 ): Promise<{ success: boolean; message: string }> {
   const now = new Date().toISOString();
 
-  // 1. Wipe old uploaded thumbnail file on server if local
+  // 1. Wipe old uploaded thumbnail file on server and disk
   try {
-    const oldThumbUrl = (typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_thumbnail') : '') || '';
-    if (oldThumbUrl && (oldThumbUrl.includes('/api/media/') || oldThumbUrl.includes('/uploads/'))) {
-      try {
-        const parts = oldThumbUrl.split('/');
-        const fileNameOrId = parts[parts.length - 1];
-        if (fileNameOrId) {
-          fetch(`/api/media/${fileNameOrId}`, { method: 'DELETE' }).catch(() => {});
-        }
-      } catch {}
+    const oldThumbUrl = activeThumbUrlToClean || (typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_thumbnail') : '') || '';
+    if (oldThumbUrl) {
+      fetch(`/api/app-thumbnail?url=${encodeURIComponent(oldThumbUrl)}`, { method: 'DELETE' }).catch(() => {});
+      if (oldThumbUrl.includes('/api/media/') || oldThumbUrl.includes('/uploads/')) {
+        try {
+          const parts = oldThumbUrl.split('?')[0].split('/');
+          const fileNameOrId = parts[parts.length - 1];
+          if (fileNameOrId) {
+            fetch(`/api/media/${fileNameOrId}`, { method: 'DELETE' }).catch(() => {});
+          }
+        } catch {}
+      }
+    } else {
+      fetch('/api/app-thumbnail', { method: 'DELETE' }).catch(() => {});
     }
 
     const staleKeys = [
@@ -964,8 +1000,11 @@ export async function deleteThumbnailFromAllDatabases(
     console.warn('LocalStorage thumbnail wipe note:', e);
   }
 
-  // 2. Reset DOM meta tags
+  // 2. Reset DOM meta tags & notify server
   applyDynamicAppThumbnail('/pwa-icon-512.png');
+  try {
+    fetch('/api/app-thumbnail', { method: 'DELETE' }).catch(() => {});
+  } catch {}
 
   // 3. Dispatch custom event for zero-delay UI update across all components
   if (typeof window !== 'undefined') {
@@ -1319,21 +1358,29 @@ export async function purgeAllOtherLogosFromDatabaseAndEnforceSoleLogo(
 /**
  * डेटाबेस और लोकल स्टोरेज से लोगो संदर्भ स्थायी रूप से पूरी तरह हटाएँ (Delete logo completely from all databases and storage)
  */
-export async function deleteLogoFromAllDatabases(adminName: string = 'सिस्टम व्यवस्थापक'): Promise<{ success: boolean; message: string; cleanedKeysCount: number }> {
+export async function deleteLogoFromAllDatabases(
+  adminName: string = 'सिस्टम व्यवस्थापक',
+  activeLogoUrlToClean?: string
+): Promise<{ success: boolean; message: string; cleanedKeysCount: number }> {
   let cleanedCount = 0;
   const now = new Date().toISOString();
 
-  // 1. LocalStorage & SessionStorage Complete Wipe
+  // 1. LocalStorage, SessionStorage & Server Media File Complete Wipe
   try {
-    const oldLogoUrl = (typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_logo') : '') || '';
-    if (oldLogoUrl && (oldLogoUrl.includes('/api/media/') || oldLogoUrl.includes('/uploads/'))) {
-      try {
-        const parts = oldLogoUrl.split('/');
-        const fileNameOrId = parts[parts.length - 1];
-        if (fileNameOrId) {
-          fetch(`/api/media/${fileNameOrId}`, { method: 'DELETE' }).catch(() => {});
-        }
-      } catch {}
+    const oldLogoUrl = activeLogoUrlToClean || (typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_logo') : '') || '';
+    if (oldLogoUrl) {
+      fetch(`/api/app-logo?url=${encodeURIComponent(oldLogoUrl)}`, { method: 'DELETE' }).catch(() => {});
+      if (oldLogoUrl.includes('/api/media/') || oldLogoUrl.includes('/uploads/')) {
+        try {
+          const parts = oldLogoUrl.split('?')[0].split('/');
+          const fileNameOrId = parts[parts.length - 1];
+          if (fileNameOrId) {
+            fetch(`/api/media/${fileNameOrId}`, { method: 'DELETE' }).catch(() => {});
+          }
+        } catch {}
+      }
+    } else {
+      fetch('/api/app-logo', { method: 'DELETE' }).catch(() => {});
     }
 
     const staleKeys = [
@@ -1397,7 +1444,11 @@ export async function deleteLogoFromAllDatabases(adminName: string = 'सिस�
     console.warn('LocalStorage logo wipe note:', e);
   }
 
-  // 2. Dispatch custom event for zero-delay UI update across all components
+  // 2. Dispatch custom event & notify server
+  try {
+    fetch('/api/app-logo', { method: 'DELETE' }).catch(() => {});
+  } catch {}
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-logo-changed', { detail: '' }));
   }
@@ -1922,10 +1973,18 @@ export async function saveHomeContent(
   }
 
   // 4. Photos preservation: keep existing lists if not explicitly provided in partial update
-  const preservedSliderPhotos = content.sliderPhotos !== undefined ? content.sliderPhotos : (currentContent.sliderPhotos || DEFAULT_SLIDER_PHOTOS);
-  const preservedCampaignPhotos = content.campaignGalleryPhotos !== undefined ? content.campaignGalleryPhotos : (currentContent.campaignGalleryPhotos || DEFAULT_CAMPAIGN_GALLERY_PHOTOS);
-  const preservedRecentPhotos = content.recentEventsPhotos !== undefined ? content.recentEventsPhotos : (currentContent.recentEventsPhotos || DEFAULT_RECENT_EVENTS_PHOTOS);
-  const preservedRuralPhotos = content.ruralWorkPhotos !== undefined ? content.ruralWorkPhotos : (currentContent.ruralWorkPhotos || DEFAULT_RURAL_WORK_PHOTOS);
+  const preservedSliderPhotos = (content.sliderPhotos && content.sliderPhotos.length > 0)
+    ? content.sliderPhotos
+    : (currentContent.sliderPhotos && currentContent.sliderPhotos.length > 0 ? currentContent.sliderPhotos : DEFAULT_SLIDER_PHOTOS);
+  const preservedCampaignPhotos = (content.campaignGalleryPhotos && content.campaignGalleryPhotos.length > 0)
+    ? content.campaignGalleryPhotos
+    : (currentContent.campaignGalleryPhotos && currentContent.campaignGalleryPhotos.length > 0 ? currentContent.campaignGalleryPhotos : DEFAULT_CAMPAIGN_GALLERY_PHOTOS);
+  const preservedRecentPhotos = (content.recentEventsPhotos && content.recentEventsPhotos.length > 0)
+    ? content.recentEventsPhotos
+    : (currentContent.recentEventsPhotos && currentContent.recentEventsPhotos.length > 0 ? currentContent.recentEventsPhotos : DEFAULT_RECENT_EVENTS_PHOTOS);
+  const preservedRuralPhotos = (content.ruralWorkPhotos && content.ruralWorkPhotos.length > 0)
+    ? content.ruralWorkPhotos
+    : (currentContent.ruralWorkPhotos && currentContent.ruralWorkPhotos.length > 0 ? currentContent.ruralWorkPhotos : DEFAULT_RURAL_WORK_PHOTOS);
 
   // 5. Video preservation: keep existing video if not provided in partial update
   const preservedVideo = (content.ruralWorkVideoUrl && content.ruralWorkVideoUrl.trim())
@@ -1942,7 +2001,7 @@ export async function saveHomeContent(
     aboutText: content.aboutText ?? currentContent.aboutText ?? DEFAULT_HOME_CONTENT.aboutText,
     missionText: content.missionText ?? currentContent.missionText ?? DEFAULT_HOME_CONTENT.missionText,
     footerText: content.footerText ?? currentContent.footerText ?? DEFAULT_HOME_CONTENT.footerText,
-    bannerImageUrl: content.bannerImageUrl || currentContent.bannerImageUrl || (preservedSliderPhotos[0]?.url || ''),
+    bannerImageUrl: content.bannerImageUrl || (content.sliderPhotos && content.sliderPhotos.length > 0 ? content.sliderPhotos[0].url : (preservedSliderPhotos[0]?.url || '')),
     bannerImages: preservedSliderPhotos.map((p) => p.url),
     sliderPhotos: preservedSliderPhotos,
     campaignGalleryPhotos: preservedCampaignPhotos,
@@ -1967,6 +2026,11 @@ export async function saveHomeContent(
     safeSetLocalStorage('jjf_home_content', JSON.stringify(payload));
   } catch {
     // Ignore
+  }
+
+  // Instant in-memory broadcast to all React components across the application
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jjf-content-updated', { detail: payload }));
   }
 
   // Firestore save with 2-second fast timeout (ensures 100% upload completion without stalling)
@@ -2246,8 +2310,12 @@ export async function uploadMediaFile(
 
   // 1. Fast Compression for images (keeps video/SVG intact)
   let activeFile = file;
-  const isImage = file.type.startsWith('image/') && file.type !== 'image/svg+xml';
-  const isVideo = file.type.startsWith('video/');
+  const isImage =
+    (Boolean(file.type) && file.type.startsWith('image/') && file.type !== 'image/svg+xml') ||
+    /\.(jpe?g|png|webp|bmp|gif|heic|heif)$/i.test(file.name);
+  const isVideo =
+    (Boolean(file.type) && file.type.startsWith('video/')) ||
+    /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name);
 
   if (isImage) {
     if (onProgress) onProgress(10, 'इमेज तीव्र संपीडन एवं अनुकूलन (Compressing)...');
@@ -2286,13 +2354,14 @@ export async function uploadMediaFile(
       const base64Data = await blobToBase64(activeFile);
       if (onProgress) onProgress(65, 'सर्वर पर डेटा सुरक्षित हो रहा है...', `${sizeLabel} / ${sizeLabel}`);
 
+      const resolvedFileType = activeFile.type || (cleanFileName.endsWith('.png') ? 'image/png' : cleanFileName.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
       const response = await fetch('/api/upload-direct', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: base64Data,
           fileName: `${timestamp}_${cleanFileName}`,
-          fileType: activeFile.type
+          fileType: resolvedFileType
         })
       });
 
@@ -2798,6 +2867,30 @@ export async function uploadCustomPaymentQrImage(
   });
 
   const base64Data = await base64Promise;
+
+  // Try direct server API first for clean static URL and zero-bloat persistence
+  try {
+    const timestamp = Date.now();
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const response = await fetch('/api/upload-direct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: base64Data,
+        fileName: `qr_${timestamp}_${cleanFileName}`,
+        fileType: file.type || 'image/jpeg'
+      })
+    });
+    if (response.ok) {
+      const json = await response.json();
+      if (json.success && json.url) {
+        if (progressCallback) progressCallback(100);
+        return json.url;
+      }
+    }
+  } catch (err) {
+    console.warn('Direct upload for payment QR warning:', err);
+  }
 
   if (isMockFirebase || !storage) {
     if (progressCallback) {

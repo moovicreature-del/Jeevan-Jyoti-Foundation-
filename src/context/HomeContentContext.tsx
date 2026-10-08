@@ -33,15 +33,29 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
         const local = localStorage.getItem('jjf_home_content');
         if (local) {
           const parsed = JSON.parse(local);
-          const customLogo = localStorage.getItem('jjf_custom_logo');
-          if (customLogo) parsed.appLogoUrl = customLogo;
-          const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-          if (isThumbDeleted) {
-            parsed.appThumbnailUrl = '';
+          if (parsed.appLogoUrl) {
+            localStorage.removeItem('jjf_logo_permanently_deleted');
           } else {
-            const customThumb = localStorage.getItem('jjf_custom_thumbnail');
+            const isLogoDeleted = localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
+            const customLogo = isLogoDeleted ? '' : (localStorage.getItem('jjf_custom_logo') || '');
+            if (customLogo) {
+              parsed.appLogoUrl = customLogo;
+              localStorage.removeItem('jjf_logo_permanently_deleted');
+            } else if (isLogoDeleted) {
+              parsed.appLogoUrl = '';
+            }
+          }
+
+          if (parsed.appThumbnailUrl && parsed.appThumbnailUrl !== '/pwa-icon-512.png') {
+            localStorage.removeItem('jjf_thumb_permanently_deleted');
+          } else {
+            const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+            const customThumb = isThumbDeleted ? '' : (localStorage.getItem('jjf_custom_thumbnail') || '');
             if (customThumb && customThumb !== '/pwa-icon-512.png') {
               parsed.appThumbnailUrl = customThumb;
+              localStorage.removeItem('jjf_thumb_permanently_deleted');
+            } else if (isThumbDeleted) {
+              parsed.appThumbnailUrl = '';
             }
           }
           const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
@@ -101,6 +115,17 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 3. रियल-टाइम लोगो चेंज इवेंट लिसनर
     const handleLogoChanged = (e: CustomEvent<string>) => {
       const newLogo = typeof e.detail === 'string' ? e.detail : '';
+      if (typeof window !== 'undefined') {
+        try {
+          if (newLogo) {
+            localStorage.removeItem('jjf_logo_permanently_deleted');
+            localStorage.setItem('jjf_custom_logo', newLogo);
+          } else {
+            localStorage.removeItem('jjf_custom_logo');
+            localStorage.setItem('jjf_logo_permanently_deleted', 'true');
+          }
+        } catch {}
+      }
       setContent((prev) => ({
         ...prev,
         appLogoUrl: newLogo
@@ -110,6 +135,17 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 4. रियल-टाइम थंबनेल चेंज इवेंट लिसनर
     const handleThumbnailChanged = (e: CustomEvent<string>) => {
       const newThumb = typeof e.detail === 'string' ? e.detail : '';
+      if (typeof window !== 'undefined') {
+        try {
+          if (newThumb && newThumb !== '/pwa-icon-512.png') {
+            localStorage.removeItem('jjf_thumb_permanently_deleted');
+            localStorage.setItem('jjf_custom_thumbnail', newThumb);
+          } else {
+            localStorage.removeItem('jjf_custom_thumbnail');
+            localStorage.setItem('jjf_thumb_permanently_deleted', 'true');
+          }
+        } catch {}
+      }
       setContent((prev) => ({
         ...prev,
         appThumbnailUrl: newThumb
@@ -134,10 +170,21 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     };
 
+    // 6. रियल-टाइम होम पेज समग्र कंटेंट (फ़ोटो गैलरी, टेक्स्ट व सेटिंग्स) चेंज इवेंट लिसनर
+    const handleContentUpdated = (e: CustomEvent<AppHomeContent>) => {
+      if (e.detail && typeof e.detail === 'object') {
+        setContent(e.detail);
+        if (e.detail.appThumbnailUrl) {
+          applyDynamicAppThumbnail(e.detail.appThumbnailUrl);
+        }
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('jjf-logo-changed' as any, handleLogoChanged);
       window.addEventListener('jjf-thumbnail-changed' as any, handleThumbnailChanged);
       window.addEventListener('jjf-seal-changed' as any, handleSealChanged);
+      window.addEventListener('jjf-content-updated' as any, handleContentUpdated);
     }
 
     return () => {
@@ -155,6 +202,7 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
         window.removeEventListener('jjf-logo-changed' as any, handleLogoChanged);
         window.removeEventListener('jjf-thumbnail-changed' as any, handleThumbnailChanged);
         window.removeEventListener('jjf-seal-changed' as any, handleSealChanged);
+        window.removeEventListener('jjf-content-updated' as any, handleContentUpdated);
       }
     };
   }, []);

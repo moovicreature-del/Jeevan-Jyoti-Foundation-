@@ -105,6 +105,9 @@ export const AppLogoManager: React.FC = () => {
   useEffect(() => {
     if (content?.appLogoUrl) {
       setLogoPreviewUrl(content.appLogoUrl);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('jjf_logo_permanently_deleted');
+      }
     } else if (typeof window !== 'undefined') {
       const isPermanentlyDeleted = localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
       if (isPermanentlyDeleted) {
@@ -117,14 +120,19 @@ export const AppLogoManager: React.FC = () => {
       setLogoPreviewUrl('');
     }
 
-    const isThumbPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-    if (isThumbPermanentlyDeleted) {
-      setThumbPreviewUrl('');
-    } else if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
+    if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
       setThumbPreviewUrl(content.appThumbnailUrl);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('jjf_thumb_permanently_deleted');
+      }
     } else if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('jjf_custom_thumbnail');
-      setThumbPreviewUrl((stored && stored !== '/pwa-icon-512.png') ? stored : '');
+      const isThumbPermanentlyDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
+      if (isThumbPermanentlyDeleted) {
+        setThumbPreviewUrl('');
+      } else {
+        const stored = localStorage.getItem('jjf_custom_thumbnail');
+        setThumbPreviewUrl((stored && stored !== '/pwa-icon-512.png') ? stored : '');
+      }
     } else {
       setThumbPreviewUrl('');
     }
@@ -138,6 +146,8 @@ export const AppLogoManager: React.FC = () => {
       if (!val) {
         setSelectedLogoFile(null);
         setLogoDirectUrlInput('');
+      } else if (typeof window !== 'undefined') {
+        localStorage.removeItem('jjf_logo_permanently_deleted');
       }
     };
 
@@ -151,6 +161,9 @@ export const AppLogoManager: React.FC = () => {
         if (fileInput) fileInput.value = '';
       } else {
         setThumbPreviewUrl(val);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('jjf_thumb_permanently_deleted');
+        }
       }
     };
 
@@ -262,15 +275,13 @@ export const AppLogoManager: React.FC = () => {
     setSelectedLogoFile(null);
     const fileInput = document.getElementById('admin-app-logo-file-input') as HTMLInputElement | null;
     if (fileInput) fileInput.value = '';
-    const isPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
-    setLogoPreviewUrl(isPermanentlyDeleted ? '' : (content?.appLogoUrl || ''));
+    setLogoPreviewUrl(content?.appLogoUrl || '');
     toast.success('चयनित लोगो फ़ाइल हटा दी गई।');
   };
 
   const handleClearLogoDirectUrl = () => {
     setLogoDirectUrlInput('');
-    const isPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
-    setLogoPreviewUrl(isPermanentlyDeleted ? '' : (content?.appLogoUrl || ''));
+    setLogoPreviewUrl(content?.appLogoUrl || '');
     toast.success('लोगो URL हटा दिया गया।');
   };
 
@@ -320,6 +331,8 @@ export const AppLogoManager: React.FC = () => {
       action: async () => {
         const adminName = adminProfile?.name || 'सिस्टम व्यवस्थापक';
 
+        const activeLogo = logoPreviewUrl || content?.appLogoUrl || '';
+
         // 1. Immediate UI update for instant feedback
         setLogoPreviewUrl('');
         setSelectedLogoFile(null);
@@ -331,7 +344,7 @@ export const AppLogoManager: React.FC = () => {
         startUpload('लोगो स्थायी निष्कासन', 'content', 'डेटाबेस, फायरस्टोर व सभी स्टोरेज से लोगो स्थायी रूप से डिलीट किया जा रहा है...');
 
         try {
-          await deleteLogoFromAllDatabases(adminName);
+          await deleteLogoFromAllDatabases(adminName, activeLogo);
           completeUpload('डेटाबेस और सभी स्टोरेज से लोगो स्थायी रूप से डिलीट कर दिया गया!');
           toast.success('🎉 डेटाबेस, फायरस्टोर और लोकल स्टोरेज से लोगो पूरी तरह स्थायी रूप से डिलीट कर दिया गया!');
         } catch (err) {
@@ -465,15 +478,13 @@ export const AppLogoManager: React.FC = () => {
     setSelectedThumbFile(null);
     const fileInput = document.getElementById('admin-app-thumbnail-file-input') as HTMLInputElement | null;
     if (fileInput) fileInput.value = '';
-    const isPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-    setThumbPreviewUrl(isPermanentlyDeleted ? '' : (content?.appThumbnailUrl || ''));
+    setThumbPreviewUrl((content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') ? content.appThumbnailUrl : '');
     toast.success('चयनित थंबनेल फ़ाइल हटा दी गई।');
   };
 
   const handleClearThumbDirectUrl = () => {
     setThumbDirectUrlInput('');
-    const isPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
-    setThumbPreviewUrl(isPermanentlyDeleted ? '' : (content?.appThumbnailUrl || ''));
+    setThumbPreviewUrl((content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') ? content.appThumbnailUrl : '');
     toast.success('थंबनेल URL हटा दिया गया।');
   };
 
@@ -524,6 +535,8 @@ export const AppLogoManager: React.FC = () => {
         const adminName = adminProfile?.name || 'सिस्टम व्यवस्थापक';
         const adminUid = adminProfile?.uid || 'admin';
 
+        const activeThumb = thumbPreviewUrl || content?.appThumbnailUrl || '';
+
         // Immediate UI update
         setThumbPreviewUrl('');
         setSelectedThumbFile(null);
@@ -535,7 +548,7 @@ export const AppLogoManager: React.FC = () => {
         startUpload('थंबनेल निष्कासन', 'content', 'डेटाबेस से थंबनेल हटाया जा रहा है...');
 
         try {
-          const res = await deleteThumbnailFromAllDatabases(adminName, adminUid);
+          const res = await deleteThumbnailFromAllDatabases(adminName, adminUid, activeThumb);
           completeUpload(res.message);
           toast.success(res.message);
         } catch (err) {

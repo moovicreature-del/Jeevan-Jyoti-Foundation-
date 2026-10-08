@@ -147,6 +147,68 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ============================================================================
+// IN-MEMORY MEDIA STORE & UPLOADS DIRECTORY
+// ============================================================================
+const mediaStore = new Map<string, { buffer: Buffer; mimeType: string; fileName: string; size: number; updatedAt: number }>();
+const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Server] Could not create public/uploads directory:', e);
+}
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  next();
+}, express.static(UPLOADS_DIR, { maxAge: '30d' }));
+app.get('/uploads/:fileName', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  const fileName = req.params.fileName;
+  const filePath = path.join(UPLOADS_DIR, fileName);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  const cleanId = fileName.replace(/\.[^/.]+$/, '');
+  const item = mediaStore.get(cleanId);
+  if (item) {
+    res.setHeader('Content-Type', item.mimeType);
+    return res.send(item.buffer);
+  }
+  next();
+});
+
+/**
+ * Permanently delete uploaded media file from server disk and in-memory cache
+ */
+function deleteUploadedMediaByUrl(targetUrl?: string): boolean {
+  if (!targetUrl || typeof targetUrl !== 'string') return false;
+  try {
+    const clean = targetUrl.split('?')[0].trim();
+    const parts = clean.split('/');
+    const fileName = parts[parts.length - 1];
+    if (!fileName) return false;
+    const cleanId = fileName.replace(/\.[^/.]+$/, '');
+    mediaStore.delete(cleanId);
+    if (fs.existsSync(UPLOADS_DIR)) {
+      const files = fs.readdirSync(UPLOADS_DIR);
+      const matches = files.filter((f) => f.startsWith(cleanId) || f === fileName);
+      for (const m of matches) {
+        try {
+          fs.unlinkSync(path.join(UPLOADS_DIR, m));
+        } catch {}
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Server] deleteUploadedMediaByUrl warning:', err);
+    return false;
+  }
+}
+
+// ============================================================================
 // DYNAMIC APP THUMBNAIL & PWA MANIFEST ENGINE
 // जब एडमिन थंबनेल अपलोड करे, तो ऐप डाउनलोड / PWA इंस्टॉलेशन में नया लोगो दिखे
 // ============================================================================
@@ -162,9 +224,13 @@ app.post('/api/app-thumbnail', (req, res) => {
   res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
 });
 
-app.delete('/api/app-thumbnail', (_req, res) => {
+app.delete('/api/app-thumbnail', (req, res) => {
+  const targetUrl = (req.query.url as string) || req.body?.url || serverAppThumbnailUrl;
+  if (targetUrl) {
+    deleteUploadedMediaByUrl(targetUrl);
+  }
   serverAppThumbnailUrl = '';
-  res.json({ success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर से स्थायी रूप से हटा दिया गया है।' });
+  res.json({ success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
 });
 
 // Dynamic App Logo Engine
@@ -180,9 +246,13 @@ app.post('/api/app-logo', (req, res) => {
   res.json({ success: true, appLogoUrl: serverAppLogoUrl });
 });
 
-app.delete('/api/app-logo', (_req, res) => {
+app.delete('/api/app-logo', (req, res) => {
+  const targetUrl = (req.query.url as string) || req.body?.url || serverAppLogoUrl;
+  if (targetUrl) {
+    deleteUploadedMediaByUrl(targetUrl);
+  }
   serverAppLogoUrl = '';
-  res.json({ success: true, appLogoUrl: '', message: 'लोगो सर्वर से स्थायी रूप से हटा दिया गया है।' });
+  res.json({ success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
 });
 
 // Dynamic Web App Manifest - returns manifest with latest custom thumbnail
@@ -289,17 +359,6 @@ interface ChunkSession {
 }
 
 const chunkSessions = new Map<string, ChunkSession>();
-const mediaStore = new Map<string, { buffer: Buffer; mimeType: string; fileName: string; size: number; updatedAt: number }>();
-
-const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
-try {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
-} catch (e) {
-  console.warn('[Server] Could not create public/uploads directory:', e);
-}
-app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d' }));
 
 // Session cleaner for stale uploads (older than 1 hour)
 setInterval(() => {

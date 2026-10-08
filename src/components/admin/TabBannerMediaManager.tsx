@@ -142,8 +142,9 @@ export const TabBannerMediaManager: React.FC = () => {
   const [customPhotoLocation, setCustomPhotoLocation] = useState<string>('');
   const [customPhotoDate, setCustomPhotoDate] = useState<string>('');
 
-  // Zoom preview modal
+  // Zoom preview modal & active preview slide index
   const [previewZoomPhoto, setPreviewZoomPhoto] = useState<SliderPhotoItem | null>(null);
+  const [previewSlideIndex, setPreviewSlideIndex] = useState<number>(0);
 
   // Upload & Save states
   const [isUploadingFiles, setIsUploadingFiles] = useState<boolean>(false);
@@ -243,24 +244,53 @@ export const TabBannerMediaManager: React.FC = () => {
     }
   };
 
-  // Multiple File Selection & Upload (Up to 15 photos max)
+  // Helper to safely preserve all 4 photo sections during any single-section update
+  const getPreservedSections = (
+    tab: ActiveSectionTab,
+    updatedList: SliderPhotoItem[]
+  ) => {
+    return {
+      sliderPhotos:
+        tab === 'section_hero_slides'
+          ? updatedList
+          : sliderPhotos.length > 0
+          ? sliderPhotos
+          : (content?.sliderPhotos && content.sliderPhotos.length > 0 ? content.sliderPhotos : DEFAULT_SLIDER_PHOTOS),
+      campaignGalleryPhotos:
+        tab === 'section_campaign_gallery'
+          ? updatedList
+          : campaignGalleryPhotos.length > 0
+          ? campaignGalleryPhotos
+          : (content?.campaignGalleryPhotos && content.campaignGalleryPhotos.length > 0 ? content.campaignGalleryPhotos : DEFAULT_CAMPAIGN_GALLERY_PHOTOS),
+      recentEventsPhotos:
+        tab === 'section_recent_events'
+          ? updatedList
+          : recentEventsPhotos.length > 0
+          ? recentEventsPhotos
+          : (content?.recentEventsPhotos && content.recentEventsPhotos.length > 0 ? content.recentEventsPhotos : DEFAULT_RECENT_EVENTS_PHOTOS),
+      ruralWorkPhotos:
+        tab === 'section_rural_work'
+          ? updatedList
+          : ruralWorkPhotos.length > 0
+          ? ruralWorkPhotos
+          : (content?.ruralWorkPhotos && content.ruralWorkPhotos.length > 0 ? content.ruralWorkPhotos : DEFAULT_RURAL_WORK_PHOTOS),
+    };
+  };
+
+  // Multiple File Selection & Upload (Instant Preview + High Speed Storage + Up to 15 photos)
   const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const { items, setItems, label } = getSectionState(activeTab);
-    const availableSlots = 15 - items.length;
-
-    if (availableSlots <= 0) {
-      toast.error(`इस सेक्शन में पहले से 15 फ़ोटो भरी हुई हैं! कृपया पहले कोई पुरानी फ़ोटो हटाएं।`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
 
     const validFiles: File[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (f.type.startsWith('image/') || f.type.startsWith('video/') || f.name.match(/\.(jpg|jpeg|png|webp|gif|svg|mp4|webm|mov)$/i)) {
+      if (
+        (f.type && (f.type.startsWith('image/') || f.type.startsWith('video/'))) ||
+        f.name.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp|heic|heif|mp4|webm|mov)$/i)
+      ) {
         validFiles.push(f);
       }
     }
@@ -271,13 +301,59 @@ export const TabBannerMediaManager: React.FC = () => {
       return;
     }
 
-    // Limit files to available slots
-    const filesToUpload = validFiles.slice(0, availableSlots);
-    if (validFiles.length > availableSlots) {
-      toast(`अधिकतम 15 सीमा के कारण केवल प्रथम ${availableSlots} फ़ाइलें अपलोड की जा रही हैं।`, {
-        icon: 'ℹ️'
-      });
-    }
+    // Limit files to maximum 15 per batch
+    const filesToUpload = validFiles.slice(0, 15);
+
+    // 1. INSTANT LOCAL PREVIEWS: Display photos on screen IMMEDIATELY (0ms lag!)
+    const tempIds: string[] = [];
+    const instantDraftItems: SliderPhotoItem[] = filesToUpload.map((file, idx) => {
+      const cleanName = file.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[-_]/g, ' ')
+        .trim();
+      const tempId = `temp-instant-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      tempIds.push(tempId);
+      const isVideoFile = file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name);
+      let localUrl = '';
+      try {
+        localUrl = URL.createObjectURL(file);
+      } catch {
+        localUrl = '';
+      }
+
+      return {
+        id: tempId,
+        url: localUrl,
+        title: cleanName.length > 2 ? cleanName : `${label} झलक ${idx + 1}`,
+        description: isVideoFile ? 'जीवन ज्योति फाउंडेशन वीडियो वृत्तचित्र' : 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर सेवा अभियान',
+        category: isVideoFile ? 'सेवा वीडियो' : activeTab === 'section_recent_events' ? 'सेवा कार्यक्रम' : 'जनसेवा अभियान',
+        location: 'ग़ाज़ीपुर, उत्तर प्रदेश',
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString()
+      };
+    });
+
+    // Check if the current items are solely the placeholder default sample photos
+    const isDefaultItem = (it: SliderPhotoItem) =>
+      Boolean(
+        it.id.startsWith('hero-slide-') ||
+        it.id.startsWith('camp-slide-') ||
+        it.id.startsWith('event-slide-') ||
+        it.id.startsWith('rural-slide-') ||
+        it.url.includes('images.unsplash.com')
+      );
+
+    const nonDraftItems = items.filter(
+      (it) => !it.id.startsWith('temp-instant-')
+    );
+    const isOnlyDefaults = nonDraftItems.length > 0 && nonDraftItems.every(isDefaultItem);
+
+    // If section only contains stock sample defaults, replace them with user's genuine photos!
+    // Otherwise prepend new photos to existing custom photos.
+    const existingToKeep = isOnlyDefaults ? [] : nonDraftItems;
+    const instantList = [...instantDraftItems, ...existingToKeep].slice(0, 15);
+    setItems(instantList);
+    setPreviewSlideIndex(0);
 
     setIsUploadingFiles(true);
     startUpload(
@@ -286,16 +362,16 @@ export const TabBannerMediaManager: React.FC = () => {
       `${label} में ${filesToUpload.length} फ़ाइलें जोड़ी जा रही हैं`
     );
 
-    const newUploaded: SliderPhotoItem[] = [];
+    const permanentUploaded: SliderPhotoItem[] = [];
 
     try {
       for (let i = 0; i < filesToUpload.length; i++) {
         const file = filesToUpload[i];
-        const isVideoFile = file.type.startsWith('video/');
+        const isVideoFile = file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name);
         const fileBasePct = 10 + Math.round((i / filesToUpload.length) * 75);
         const fileChunkSpan = Math.round(75 / filesToUpload.length);
 
-        setUploadProgressText(`फ़ाइल ${i + 1}/${filesToUpload.length} अपलोड हो रही है: ${file.name}`);
+        setUploadProgressText(`फ़ाइल ${i + 1}/${filesToUpload.length} सुरक्षित हो रही है: ${file.name}`);
         updateProgress(fileBasePct, `अपलोडिंग फ़ाइल ${i + 1}/${filesToUpload.length}: ${file.name}`);
 
         const downloadUrl = await uploadMediaFile(
@@ -312,10 +388,11 @@ export const TabBannerMediaManager: React.FC = () => {
           .replace(/[-_]/g, ' ')
           .trim();
 
-        newUploaded.push({
+        // Create finalized photo object with permanent storage URL
+        permanentUploaded.push({
           id: `photo-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
-          url: downloadUrl,
-          title: cleanName.length > 2 ? cleanName : `${label} झलक ${items.length + i + 1}`,
+          url: downloadUrl || instantDraftItems[i].url,
+          title: cleanName.length > 2 ? cleanName : `${label} झलक ${i + 1}`,
           description: isVideoFile ? 'जीवन ज्योति फाउंडेशन वीडियो वृत्तचित्र' : 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर सेवा अभियान',
           category: isVideoFile ? 'सेवा वीडियो' : activeTab === 'section_recent_events' ? 'सेवा कार्यक्रम' : 'जनसेवा अभियान',
           location: 'ग़ाज़ीपुर, उत्तर प्रदेश',
@@ -324,23 +401,22 @@ export const TabBannerMediaManager: React.FC = () => {
         });
       }
 
-      const updatedList = [...items, ...newUploaded].slice(0, 15);
-      setItems(updatedList);
+      // Finalize uploaded list with existing non-default items and keep top 15
+      const finalList = [...permanentUploaded, ...existingToKeep].slice(0, 15);
+
+      setItems(finalList);
+      setPreviewSlideIndex(0);
 
       updateProgress(90, 'फ़ोटो व मीडिया डेटाबेस में सुरक्षित की जा रही हैं...');
-      
-      // Auto-save the section immediately with all photo sections and video preserved
-      const newSliderPhotos = activeTab === 'section_hero_slides' ? updatedList : sliderPhotos;
-      const newCampaignPhotos = activeTab === 'section_campaign_gallery' ? updatedList : campaignGalleryPhotos;
-      const newRecentPhotos = activeTab === 'section_recent_events' ? updatedList : recentEventsPhotos;
-      const newRuralPhotos = activeTab === 'section_rural_work' ? updatedList : ruralWorkPhotos;
+
+      // Auto-save the section immediately with all other sections safely preserved
+      const preserved = getPreservedSections(activeTab, finalList);
 
       await saveHomeContent(
         {
-          sliderPhotos: newSliderPhotos,
-          campaignGalleryPhotos: newCampaignPhotos,
-          recentEventsPhotos: newRecentPhotos,
-          ruralWorkPhotos: newRuralPhotos,
+          ...preserved,
+          bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+          bannerImages: preserved.sliderPhotos.map((p) => p.url),
           bannerVideoUrl: bannerVideoUrl,
           ruralWorkVideoUrl: bannerVideoUrl
         },
@@ -352,8 +428,8 @@ export const TabBannerMediaManager: React.FC = () => {
       await new Promise((r) => setTimeout(r, 60));
 
       updateProgress(100, 'सभी फ़ाइलें 100% सफलतापूर्वक अपलोड व सुरक्षित हो गईं!');
-      completeUpload(`🎉 ${newUploaded.length} नई फ़ाइलें 100% सफलतापूर्वक सुरक्षित हो गईं!`);
-      toast.success(`🎉 ${newUploaded.length} नई फ़ोटो/मीडिया सफलतापूर्वक जुड़ गईं! (कुल: ${updatedList.length}/15)`);
+      completeUpload(`🎉 ${permanentUploaded.length} नई फ़ाइलें 100% सफलतापूर्वक सुरक्षित हो गईं!`);
+      toast.success(`🎉 ${permanentUploaded.length} नई फ़ोटो सफलतापूर्वक अपलोड हो गई और स्लाइड #1 पर लाइव दिख रही है!`);
     } catch (err: any) {
       console.error('File upload error:', err);
       failUpload(err?.message || 'फ़ोटो अपलोड असफल');
@@ -366,7 +442,7 @@ export const TabBannerMediaManager: React.FC = () => {
   };
 
   // Add Photo by Custom URL Handler
-  const handleAddPhotoByUrl = (e: React.FormEvent) => {
+  const handleAddPhotoByUrl = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customPhotoUrl.trim()) {
       toast.error('कृपया फ़ोटो का वैध URL दर्ज करें!');
@@ -374,15 +450,11 @@ export const TabBannerMediaManager: React.FC = () => {
     }
 
     const { items, setItems, label } = getSectionState(targetSectionForUrl);
-    if (items.length >= 15) {
-      toast.error(`इस सेक्शन में पहले से अधिकतम 15 फ़ोटो पूरी हैं!`);
-      return;
-    }
 
     const newPhoto: SliderPhotoItem = {
-      id: `url-photo-${Date.now()}`,
+      id: `url-photo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       url: customPhotoUrl.trim(),
-      title: customPhotoTitle.trim() || `${label} झलक ${items.length + 1}`,
+      title: customPhotoTitle.trim() || `${label} झलक 1`,
       description: customPhotoDesc.trim() || 'जीवन ज्योति फाउंडेशन सेवा अभियान',
       category: customPhotoCategory.trim() || 'जनसेवा अभियान',
       location: customPhotoLocation.trim() || 'ग़ाज़ीपुर',
@@ -390,8 +462,37 @@ export const TabBannerMediaManager: React.FC = () => {
       createdAt: new Date().toISOString()
     };
 
-    setItems((prev) => [...prev, newPhoto].slice(0, 15));
-    toast.success(`फ़ोटो सफलतापूर्वक जोड़ दी गई! (${items.length + 1}/15)`);
+    const isDefaultItem = (it: SliderPhotoItem) =>
+      Boolean(
+        it.id.startsWith('hero-slide-') ||
+        it.id.startsWith('camp-slide-') ||
+        it.id.startsWith('event-slide-') ||
+        it.id.startsWith('rural-slide-') ||
+        it.url.includes('images.unsplash.com')
+      );
+    const isOnlyDefaults = items.length > 0 && items.every(isDefaultItem);
+    const cleanExisting = isOnlyDefaults
+      ? []
+      : items.filter((it) => it.url !== newPhoto.url);
+    const updatedList = [newPhoto, ...cleanExisting].slice(0, 15);
+
+    setItems(updatedList);
+    setPreviewSlideIndex(0);
+
+    // Auto-save immediately to database
+    const preserved = getPreservedSections(targetSectionForUrl, updatedList);
+
+    await saveHomeContent(
+      {
+        ...preserved,
+        bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+        bannerImages: preserved.sliderPhotos.map((p) => p.url)
+      },
+      adminProfile?.name || 'एडमिन व्यवस्थापक',
+      adminProfile?.uid || 'admin'
+    );
+
+    toast.success(`फ़ोटो सफलतापूर्वक जोड़ दी गई और सुरक्षित हो गई!`);
 
     // Reset inputs
     setCustomPhotoUrl('');
@@ -404,40 +505,73 @@ export const TabBannerMediaManager: React.FC = () => {
   };
 
   // Reorder Item (Up)
-  const handleMoveUp = (tab: ActiveSectionTab, index: number) => {
+  const handleMoveUp = async (tab: ActiveSectionTab, index: number) => {
     if (index === 0) return;
-    const { setItems } = getSectionState(tab);
-    setItems((prev) => {
-      const arr = [...prev];
-      const temp = arr[index - 1];
-      arr[index - 1] = arr[index];
-      arr[index] = temp;
-      return arr;
-    });
+    const { items, setItems } = getSectionState(tab);
+    const arr = [...items];
+    const temp = arr[index - 1];
+    arr[index - 1] = arr[index];
+    arr[index] = temp;
+    setItems(arr);
+    setPreviewSlideIndex(index - 1);
+
+    const preserved = getPreservedSections(tab, arr);
+    await saveHomeContent(
+      {
+        ...preserved,
+        bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+        bannerImages: preserved.sliderPhotos.map((p) => p.url)
+      },
+      adminProfile?.name || 'एडमिन व्यवस्थापक',
+      adminProfile?.uid || 'admin'
+    );
   };
 
   // Reorder Item (Down)
-  const handleMoveDown = (tab: ActiveSectionTab, index: number) => {
+  const handleMoveDown = async (tab: ActiveSectionTab, index: number) => {
     const { items, setItems } = getSectionState(tab);
     if (index === items.length - 1) return;
-    setItems((prev) => {
-      const arr = [...prev];
-      const temp = arr[index + 1];
-      arr[index + 1] = arr[index];
-      arr[index] = temp;
-      return arr;
-    });
+    const arr = [...items];
+    const temp = arr[index + 1];
+    arr[index + 1] = arr[index];
+    arr[index] = temp;
+    setItems(arr);
+    setPreviewSlideIndex(index + 1);
+
+    const preserved = getPreservedSections(tab, arr);
+    await saveHomeContent(
+      {
+        ...preserved,
+        bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+        bannerImages: preserved.sliderPhotos.map((p) => p.url)
+      },
+      adminProfile?.name || 'एडमिन व्यवस्थापक',
+      adminProfile?.uid || 'admin'
+    );
   };
 
   // Delete Item
-  const handleDeletePhoto = (tab: ActiveSectionTab, id: string) => {
+  const handleDeletePhoto = async (tab: ActiveSectionTab, id: string) => {
     const { items, setItems } = getSectionState(tab);
     if (items.length <= 1) {
       toast.error('कम से कम १ फ़ोटो स्लाइडर में रहना अनिवार्य है!');
       return;
     }
-    setItems((prev) => prev.filter((p) => p.id !== id));
-    toast.success('फ़ोटो हटा दी गई');
+    const filtered = items.filter((p) => p.id !== id);
+    setItems(filtered);
+    setPreviewSlideIndex(0);
+
+    const preserved = getPreservedSections(tab, filtered);
+    await saveHomeContent(
+      {
+        ...preserved,
+        bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+        bannerImages: preserved.sliderPhotos.map((p) => p.url)
+      },
+      adminProfile?.name || 'एडमिन व्यवस्थापक',
+      adminProfile?.uid || 'admin'
+    );
+    toast.success('फ़ोटो हटा दी गई एवं डेटाबेस अपडेट हुआ');
   };
 
   // Update Item Fields inline
@@ -454,12 +588,23 @@ export const TabBannerMediaManager: React.FC = () => {
   };
 
   // Reset to Defaults
-  const handleResetSectionDefaults = (tab: ActiveSectionTab) => {
-    const { setItems, defaults, label } = getSectionState(tab);
-    if (window.confirm(`क्या आप ${label} को सत्यापित डिफ़ॉल्ट फ़ोटो सेट पर रीसेट करना चाहते हैं?`)) {
-      setItems(defaults.slice(0, 15));
-      toast.success(`${label} की डिफ़ॉल्ट फ़ोटो पुनः लोड हो गई हैं!`);
-    }
+  const handleResetSectionDefaults = async (tab: ActiveSectionTab) => {
+    const { defaults, label, setItems } = getSectionState(tab);
+    const resetList = defaults.slice(0, 15);
+    setItems(resetList);
+    setPreviewSlideIndex(0);
+
+    const preserved = getPreservedSections(tab, resetList);
+    await saveHomeContent(
+      {
+        ...preserved,
+        bannerImageUrl: preserved.sliderPhotos[0]?.url || bannerImageUrl,
+        bannerImages: preserved.sliderPhotos.map((p) => p.url)
+      },
+      adminProfile?.name || 'एडमिन व्यवस्थापक',
+      adminProfile?.uid || 'admin'
+    );
+    toast.success(`${label} की डिफ़ॉल्ट फ़ोटो पुनः लोड व सुरक्षित हो गई हैं!`);
   };
 
   // Quick Save YouTube Video Only (For Section 4 Rural Work)
@@ -1034,6 +1179,18 @@ export const TabBannerMediaManager: React.FC = () => {
 
                     {/* Metadata & Captions (8 Cols) */}
                     <div className="md:col-span-8 space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {index === 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                            🌟 मुख्य स्लाइड #1 (First Active Slide)
+                          </span>
+                        )}
+                        {previewSlideIndex === index && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black border border-amber-300">
+                            👁️ पूर्वावलोकन में प्रदर्शित
+                          </span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
@@ -1130,39 +1287,105 @@ export const TabBannerMediaManager: React.FC = () => {
           </div>
 
           {/* Interactive Live Slide Preview for Active Section */}
-          {activeSectionState.items.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Play className="w-3.5 h-3.5 text-[#8B0000]" />
-                  <span>लाइव स्लाइडर पूर्वावलोकन (Preview of Section {activeConfig.numberLabel})</span>
-                </span>
-                <span className="text-xs text-slate-500 font-mono">
-                  {activeSectionState.items.length} फ़ोटो स्लाइड
-                </span>
-              </div>
-
-              <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden bg-black border-2 border-amber-400/60 shadow-lg">
-                <img
-                  src={activeSectionState.items[0]?.url}
-                  alt="Preview"
-                  className="w-full h-full object-cover opacity-85"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
-                    {activeSectionState.items[0]?.category || activeConfig.badge}
+          {activeSectionState.items.length > 0 && (() => {
+            const currentPreviewItem = activeSectionState.items[previewSlideIndex] || activeSectionState.items[0];
+            return (
+              <div className="mt-8 pt-6 border-t border-slate-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Play className="w-3.5 h-3.5 text-[#8B0000]" />
+                    <span>लाइव स्लाइडर पूर्वावलोकन (Preview of Section {activeConfig.numberLabel})</span>
                   </span>
-                  <h4 className="text-base sm:text-lg font-black font-serif mt-1">
-                    {activeSectionState.items[0]?.title}
-                  </h4>
-                  <p className="text-xs text-slate-300 line-clamp-1">
-                    {activeSectionState.items[0]?.description}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 font-mono">
+                      स्लाइड {previewSlideIndex + 1} / {activeSectionState.items.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSlideIndex((p) => (p > 0 ? p - 1 : activeSectionState.items.length - 1))}
+                        className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                        title="पिछली स्लाइड"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSlideIndex((p) => (p < activeSectionState.items.length - 1 ? p + 1 : 0))}
+                        className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                        title="अगली स्लाइड"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative w-full h-64 sm:h-80 md:h-96 rounded-2xl overflow-hidden bg-black border-2 border-amber-400/60 shadow-lg group">
+                  <img
+                    src={currentPreviewItem?.url}
+                    alt={currentPreviewItem?.title || 'Preview'}
+                    className="w-full h-full object-cover transition-all duration-300"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1000&auto=format&fit=crop&q=75';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                  
+                  {/* Badges on Top */}
+                  <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-full bg-black/60 text-amber-300 backdrop-blur-md text-xs font-mono font-bold border border-amber-400/40">
+                      स्लाइड #{previewSlideIndex + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoomPhoto(currentPreviewItem)}
+                      className="px-3 py-1 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>पूर्ण स्क्रीन ज़ूम</span>
+                    </button>
+                  </div>
+
+                  {/* Caption on Bottom */}
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
+                      {currentPreviewItem?.category || activeConfig.badge}
+                    </span>
+                    <h4 className="text-base sm:text-lg font-black font-serif mt-1">
+                      {currentPreviewItem?.title}
+                    </h4>
+                    <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">
+                      {currentPreviewItem?.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Thumbnails Navigator Bar */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                  {activeSectionState.items.map((it, idx) => (
+                    <button
+                      key={it.id || idx}
+                      type="button"
+                      onClick={() => setPreviewSlideIndex(idx)}
+                      className={`shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all cursor-pointer relative ${
+                        previewSlideIndex === idx
+                          ? 'border-amber-400 scale-105 shadow-md ring-2 ring-amber-300/60'
+                          : 'border-slate-300 opacity-60 hover:opacity-100'
+                      }`}
+                      title={`स्लाइड #${idx + 1}: ${it.title}`}
+                    >
+                      <img src={it.url} alt="" className="w-full h-full object-cover" />
+                      <span className="absolute bottom-0 right-0 px-1 py-0.2 bg-black/70 text-white font-mono text-[9px] font-bold rounded-tl">
+                        #{idx + 1}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

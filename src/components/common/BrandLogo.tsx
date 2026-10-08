@@ -58,16 +58,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       setLocalCustomLogo(customLogoUrl);
       setImgFailed(false);
     } else if (contextLogo !== undefined) {
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('jjf_custom_logo');
-        if (stored) {
-          setLocalCustomLogo(stored);
-        } else {
-          setLocalCustomLogo(contextLogo || '');
-        }
-      } else {
-        setLocalCustomLogo(contextLogo || '');
-      }
+      setLocalCustomLogo(contextLogo || '');
       setImgFailed(false);
     }
   }, [customLogoUrl, contextLogo]);
@@ -77,6 +68,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     const handleLogoChange = (e: CustomEvent<string>) => {
       const newLogo = typeof e.detail === 'string' ? e.detail : '';
       setLocalCustomLogo(newLogo);
+      if (newLogo && typeof window !== 'undefined') {
+        localStorage.removeItem('jjf_logo_permanently_deleted');
+      }
       setImgFailed(false);
     };
 
@@ -93,19 +87,17 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     : (size === 'xs' ? 24 : size === 'sm' ? 32 : size === 'md' ? 48 : size === 'lg' ? 64 : size === 'xl' ? 80 : size);
 
   // Determine active logo URL to render:
-  // Priority: 1. explicit prop, 2. local state / event, 3. context, 4. local storage, 5. empty (vector fallback)
+  // Priority: 1. explicit prop, 2. context logo, 3. local event state, 4. local storage, 5. official default vector emblem
   let activeLogoUrl = '';
   const isPermanentlyDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
 
-  if (isPermanentlyDeleted && !customLogoUrl) {
-    activeLogoUrl = '';
-  } else if (customLogoUrl !== undefined && customLogoUrl !== '') {
+  if (customLogoUrl !== undefined && customLogoUrl !== '') {
     activeLogoUrl = customLogoUrl;
-  } else if (localCustomLogo) {
-    activeLogoUrl = localCustomLogo;
-  } else if (contextLogo) {
-    activeLogoUrl = contextLogo;
-  } else if (typeof window !== 'undefined') {
+  } else if (contextLogo && contextLogo.trim()) {
+    activeLogoUrl = contextLogo.trim();
+  } else if (localCustomLogo && localCustomLogo.trim()) {
+    activeLogoUrl = localCustomLogo.trim();
+  } else if (typeof window !== 'undefined' && !isPermanentlyDeleted) {
     try {
       activeLogoUrl = localStorage.getItem('jjf_custom_logo') || '';
     } catch {
@@ -121,7 +113,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   }, [activeLogoUrl]);
 
   const finalOpacity = watermark ? (opacity ?? 0.12) : (opacity ?? 1);
-  const effectiveLogoUrl = (!isPermanentlyDeleted && activeLogoUrl) ? activeLogoUrl : '/pwa-icon-512.png';
+  const effectiveLogoUrl = activeLogoUrl || '/logo.svg';
 
   // Render official logo (custom or official default emblem)
   if (effectiveLogoUrl && !imgFailed && !forceVector) {
@@ -145,7 +137,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         onClick={onClick}
         loading="eager"
         decoding="async"
-        crossOrigin="anonymous"
       />
     );
   }
