@@ -38,7 +38,8 @@ import {
   uploadMediaFile,
   optimizeImageFile,
   purgeAllOtherLogosFromDatabaseAndEnforceSoleLogo,
-  deleteLogoFromAllDatabases
+  deleteLogoFromAllDatabases,
+  fixAndCleanAllLogosAndThumbnails
 } from '../../services/adminService';
 import { BrandLogo } from '../common/BrandLogo';
 import { RoyalCertificateSeal } from '../common/RoyalCertificateSeal';
@@ -562,6 +563,35 @@ export const AppLogoManager: React.FC = () => {
     });
   };
 
+  const handleFixAndCleanAll = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'पुराने लोगो/थंबनेल हटाएं व वर्तमान आधिकारिक लोगो लागू करें?',
+      description: 'यह डेटाबेस और सभी स्टोरेज से पुराने अप्रचलित लोगो और थंबनेल को स्थायी रूप से हटाकर, वर्तमान आधिकारिक लोगो व ऐप थंबनेल को पूरी वेबसाइट, PWA इंस्टॉलेशन और सोशल शेयरिंग पर 100% लागू कर देगा। क्या आप आगे बढ़ना चाहते हैं?',
+      confirmLabel: 'हाँ, वर्तमान लोगो ठीक करें व लागू करें',
+      isDanger: false,
+      action: async () => {
+        const adminName = adminProfile?.name || 'सिस्टम व्यवस्थापक';
+        const adminUid = adminProfile?.uid || 'admin';
+        setIsApplying(true);
+        startUpload('लोगो व थंबनेल स्थायी सुधार', 'content', 'पुराने डेटा को हटाकर वर्तमान आधिकारिक लोगो लागू किया जा रहा है...');
+        try {
+          const res = await fixAndCleanAllLogosAndThumbnails(adminName, adminUid);
+          setLogoPreviewUrl('/uploads/jjf_official_app_logo_current.png');
+          setThumbPreviewUrl('/uploads/jjf_official_app_thumbnail_current.png');
+          completeUpload(res.message);
+          toast.success(res.message);
+        } catch (err: any) {
+          console.error(err);
+          failUpload('सुधार प्रक्रिया में त्रुटि आई।');
+          toast.error('त्रुटि आई, कृपया पुनः प्रयास करें।');
+        } finally {
+          setIsApplying(false);
+        }
+      }
+    });
+  };
+
   const isCustomLogoActive = Boolean(content?.appLogoUrl || logoPreviewUrl);
   const isCustomThumbActive = Boolean(
     (content?.appThumbnailUrl && content.appThumbnailUrl.trim() !== '' && content.appThumbnailUrl !== '/pwa-icon-512.png') ||
@@ -809,6 +839,18 @@ export const AppLogoManager: React.FC = () => {
                 >
                   <Trash2 className="w-4 h-4 text-red-600" />
                   <span>डेटाबेस से लोगो स्थायी रूप से डिलीट करें</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-fix-branding-official-logo-tab"
+                  onClick={handleFixAndCleanAll}
+                  disabled={isApplying || isUploading}
+                  title="पुराने लोगो व थंबनेल हटाएं और वर्तमान आधिकारिक लोगो 100% लागू करें"
+                  className="flex items-center gap-2 px-4 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-emerald-600"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>वर्तमान आधिकारिक लोगो व थंबनेल ठीक करें</span>
                 </button>
               </div>
 
@@ -1121,6 +1163,18 @@ export const AppLogoManager: React.FC = () => {
                 >
                   <Trash2 className="w-4 h-4 text-red-600" />
                   <span>थंबनेल डिलीट करें</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-fix-branding-official-thumb-tab"
+                  onClick={handleFixAndCleanAll}
+                  disabled={isApplying || isUploading}
+                  title="पुराने लोगो व थंबनेल हटाएं और वर्तमान आधिकारिक लोगो 100% लागू करें"
+                  className="flex items-center gap-2 px-4 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-emerald-600"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>वर्तमान आधिकारिक लोगो व थंबनेल ठीक करें</span>
                 </button>
               </div>
             </div>

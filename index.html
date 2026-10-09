@@ -22,6 +22,10 @@
               }
             }
           }
+          if (customThumb && (customThumb.indexOf('1791445209912') !== -1 || customThumb.indexOf('1791445272050') !== -1)) {
+            customThumb = null;
+            try { localStorage.removeItem('jjf_custom_thumbnail'); } catch(e) {}
+          }
           if (customThumb && customThumb.trim()) {
             var t = customThumb.trim();
             var icons = document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]');

@@ -212,7 +212,42 @@ function deleteUploadedMediaByUrl(targetUrl?: string): boolean {
 // DYNAMIC APP THUMBNAIL & PWA MANIFEST ENGINE
 // जब एडमिन थंबनेल अपलोड करे, तो ऐप डाउनलोड / PWA इंस्टॉलेशन में नया लोगो दिखे
 // ============================================================================
-let serverAppThumbnailUrl: string = '';
+const BRANDING_FILE = path.join(UPLOADS_DIR, 'app-branding.json');
+
+function loadPersistentBranding(): { appLogoUrl: string; appThumbnailUrl: string } {
+  try {
+    if (fs.existsSync(BRANDING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(BRANDING_FILE, 'utf-8'));
+      return {
+        appLogoUrl: typeof data.appLogoUrl === 'string' ? data.appLogoUrl : '',
+        appThumbnailUrl: typeof data.appThumbnailUrl === 'string' ? data.appThumbnailUrl : ''
+      };
+    }
+  } catch {}
+  return {
+    appLogoUrl: '/uploads/jjf_official_app_logo_current.png',
+    appThumbnailUrl: '/uploads/jjf_official_app_thumbnail_current.png'
+  };
+}
+
+function savePersistentBranding(logoUrl?: string, thumbnailUrl?: string) {
+  try {
+    const current = loadPersistentBranding();
+    const updated = {
+      appLogoUrl: logoUrl !== undefined ? logoUrl : current.appLogoUrl,
+      appThumbnailUrl: thumbnailUrl !== undefined ? thumbnailUrl : current.appThumbnailUrl,
+      updatedAt: new Date().toISOString()
+    };
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+    fs.writeFileSync(BRANDING_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch {}
+}
+
+const initialBranding = loadPersistentBranding();
+let serverAppThumbnailUrl: string = initialBranding.appThumbnailUrl;
+let serverAppLogoUrl: string = initialBranding.appLogoUrl;
 
 app.get('/api/app-thumbnail', (_req, res) => {
   res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
@@ -221,6 +256,7 @@ app.get('/api/app-thumbnail', (_req, res) => {
 app.post('/api/app-thumbnail', (req, res) => {
   const { thumbnailUrl } = req.body || {};
   serverAppThumbnailUrl = typeof thumbnailUrl === 'string' ? thumbnailUrl.trim() : '';
+  savePersistentBranding(undefined, serverAppThumbnailUrl);
   res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
 });
 
@@ -230,12 +266,11 @@ app.delete('/api/app-thumbnail', (req, res) => {
     deleteUploadedMediaByUrl(targetUrl);
   }
   serverAppThumbnailUrl = '';
+  savePersistentBranding(undefined, '');
   res.json({ success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
 });
 
 // Dynamic App Logo Engine
-let serverAppLogoUrl: string = '';
-
 app.get('/api/app-logo', (_req, res) => {
   res.json({ success: true, appLogoUrl: serverAppLogoUrl });
 });
@@ -243,6 +278,7 @@ app.get('/api/app-logo', (_req, res) => {
 app.post('/api/app-logo', (req, res) => {
   const { logoUrl } = req.body || {};
   serverAppLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
+  savePersistentBranding(serverAppLogoUrl, undefined);
   res.json({ success: true, appLogoUrl: serverAppLogoUrl });
 });
 
@@ -252,6 +288,7 @@ app.delete('/api/app-logo', (req, res) => {
     deleteUploadedMediaByUrl(targetUrl);
   }
   serverAppLogoUrl = '';
+  savePersistentBranding('', undefined);
   res.json({ success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
 });
 

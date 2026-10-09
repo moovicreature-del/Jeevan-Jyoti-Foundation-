@@ -17,15 +17,21 @@ export const PwaInstallBanner: React.FC = () => {
         const isDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
         if (!isDeleted) {
           const localThumb = localStorage.getItem('jjf_custom_thumbnail');
-          if (localThumb && localThumb !== '/pwa-icon-512.png') return localThumb;
+          if (localThumb && localThumb !== '/pwa-icon-512.png' && !localThumb.includes('1791445209912') && !localThumb.includes('1791445272050')) {
+            return localThumb;
+          }
         }
       } catch {}
     }
-    return content?.appThumbnailUrl || content?.appLogoUrl || '/pwa-icon-512.png';
+    const candidate = content?.appThumbnailUrl || content?.appLogoUrl || '/pwa-icon-512.png';
+    if (candidate.includes('1791445209912') || candidate.includes('1791445272050')) {
+      return '/pwa-icon-512.png';
+    }
+    return candidate;
   });
 
   useEffect(() => {
-    if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png') {
+    if (content?.appThumbnailUrl && content.appThumbnailUrl !== '/pwa-icon-512.png' && !content.appThumbnailUrl.includes('1791445209912') && !content.appThumbnailUrl.includes('1791445272050')) {
       setActiveThumbnail(content.appThumbnailUrl);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('jjf_thumb_permanently_deleted');
@@ -34,7 +40,7 @@ export const PwaInstallBanner: React.FC = () => {
       const isDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
       if (isDeleted) {
         setActiveThumbnail(content?.appLogoUrl || '/pwa-icon-512.png');
-      } else if (content?.appLogoUrl) {
+      } else if (content?.appLogoUrl && !content.appLogoUrl.includes('1791445209912') && !content.appLogoUrl.includes('1791445272050')) {
         setActiveThumbnail(content.appLogoUrl);
       } else {
         setActiveThumbnail('/pwa-icon-512.png');

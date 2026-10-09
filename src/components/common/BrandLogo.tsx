@@ -107,13 +107,17 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     activeLogoUrl = '';
   }
 
+  if (activeLogoUrl && (activeLogoUrl.includes('1791445209912') || activeLogoUrl.includes('1791445272050'))) {
+    activeLogoUrl = '';
+  }
+
   // Reset imgFailed when the URL changes
   useEffect(() => {
     setImgFailed(false);
   }, [activeLogoUrl]);
 
   const finalOpacity = watermark ? (opacity ?? 0.12) : (opacity ?? 1);
-  const effectiveLogoUrl = activeLogoUrl || '/logo.svg';
+  const effectiveLogoUrl = activeLogoUrl || '/logo.png';
 
   // Render official logo (custom or official default emblem)
   if (effectiveLogoUrl && !imgFailed && !forceVector) {

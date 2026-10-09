@@ -33,12 +33,23 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
         const local = localStorage.getItem('jjf_home_content');
         if (local) {
           const parsed = JSON.parse(local);
+
+          // Purge stale or corrupted media paths
+          if (parsed.appThumbnailUrl && (parsed.appThumbnailUrl.includes('1791445209912') || parsed.appThumbnailUrl.includes('1791445272050') || parsed.appThumbnailUrl.includes('old'))) {
+            parsed.appThumbnailUrl = '';
+            localStorage.removeItem('jjf_custom_thumbnail');
+          }
+          if (parsed.appLogoUrl && (parsed.appLogoUrl.includes('1791445209912') || parsed.appLogoUrl.includes('1791445272050') || parsed.appLogoUrl.includes('old'))) {
+            parsed.appLogoUrl = '';
+            localStorage.removeItem('jjf_custom_logo');
+          }
+
           if (parsed.appLogoUrl) {
             localStorage.removeItem('jjf_logo_permanently_deleted');
           } else {
             const isLogoDeleted = localStorage.getItem('jjf_logo_permanently_deleted') === 'true';
             const customLogo = isLogoDeleted ? '' : (localStorage.getItem('jjf_custom_logo') || '');
-            if (customLogo) {
+            if (customLogo && !customLogo.includes('1791445209912') && !customLogo.includes('1791445272050')) {
               parsed.appLogoUrl = customLogo;
               localStorage.removeItem('jjf_logo_permanently_deleted');
             } else if (isLogoDeleted) {
@@ -51,7 +62,7 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
           } else {
             const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
             const customThumb = isThumbDeleted ? '' : (localStorage.getItem('jjf_custom_thumbnail') || '');
-            if (customThumb && customThumb !== '/pwa-icon-512.png') {
+            if (customThumb && customThumb !== '/pwa-icon-512.png' && !customThumb.includes('1791445209912') && !customThumb.includes('1791445272050')) {
               parsed.appThumbnailUrl = customThumb;
               localStorage.removeItem('jjf_thumb_permanently_deleted');
             } else if (isThumbDeleted) {

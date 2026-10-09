@@ -60,8 +60,43 @@ if (typeof devUploadCleanupInterval?.unref === 'function') {
 
 // In-memory OTP storage for Vite dev mode
 const devOtpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
-let devAppThumbnailUrl: string = '';
-let devAppLogoUrl: string = '';
+
+const DEV_BRANDING_FILE = path.join(UPLOADS_DIR, 'app-branding.json');
+
+function loadDevBranding(): { appLogoUrl: string; appThumbnailUrl: string } {
+  try {
+    if (fs.existsSync(DEV_BRANDING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DEV_BRANDING_FILE, 'utf-8'));
+      return {
+        appLogoUrl: typeof data.appLogoUrl === 'string' ? data.appLogoUrl : '',
+        appThumbnailUrl: typeof data.appThumbnailUrl === 'string' ? data.appThumbnailUrl : ''
+      };
+    }
+  } catch {}
+  return {
+    appLogoUrl: '/uploads/jjf_official_app_logo_current.png',
+    appThumbnailUrl: '/uploads/jjf_official_app_thumbnail_current.png'
+  };
+}
+
+function saveDevBranding(logoUrl?: string, thumbnailUrl?: string) {
+  try {
+    const current = loadDevBranding();
+    const updated = {
+      appLogoUrl: logoUrl !== undefined ? logoUrl : current.appLogoUrl,
+      appThumbnailUrl: thumbnailUrl !== undefined ? thumbnailUrl : current.appThumbnailUrl,
+      updatedAt: new Date().toISOString()
+    };
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DEV_BRANDING_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch {}
+}
+
+const initialDevBranding = loadDevBranding();
+let devAppThumbnailUrl: string = initialDevBranding.appThumbnailUrl;
+let devAppLogoUrl: string = initialDevBranding.appLogoUrl;
 
 function deleteDevUploadedMediaByUrl(targetUrl?: string): boolean {
   if (!targetUrl || typeof targetUrl !== 'string') return false;
@@ -421,6 +456,7 @@ function apiDevServerPlugin(): Plugin {
             } else {
               devAppThumbnailUrl = '';
             }
+            saveDevBranding(undefined, devAppThumbnailUrl);
             return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
           }
           if (req.method === 'DELETE') {
@@ -434,6 +470,7 @@ function apiDevServerPlugin(): Plugin {
               deleteDevUploadedMediaByUrl(targetUrl);
             }
             devAppThumbnailUrl = '';
+            saveDevBranding(undefined, '');
             return sendJson(200, { success: true, appThumbnailUrl: '', message: 'ऐप थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
           }
           return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
@@ -444,6 +481,7 @@ function apiDevServerPlugin(): Plugin {
           if (req.method === 'POST') {
             const body = await getBody();
             devAppLogoUrl = typeof body?.logoUrl === 'string' ? body.logoUrl.trim() : '';
+            saveDevBranding(devAppLogoUrl, undefined);
             return sendJson(200, { success: true, appLogoUrl: devAppLogoUrl });
           }
           if (req.method === 'DELETE') {
@@ -457,6 +495,7 @@ function apiDevServerPlugin(): Plugin {
               deleteDevUploadedMediaByUrl(targetUrl);
             }
             devAppLogoUrl = '';
+            saveDevBranding('', undefined);
             return sendJson(200, { success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
           }
           return sendJson(200, { success: true, appLogoUrl: devAppLogoUrl });
