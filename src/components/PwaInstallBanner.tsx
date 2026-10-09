@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Smartphone, Sparkles, Share, CheckCircle2, ShieldCheck, ArrowRight, ExternalLink, Globe, Monitor, HelpCircle } from 'lucide-react';
+import { Download, X, Smartphone, Sparkles, Share, CheckCircle2, ShieldCheck, ExternalLink, Monitor, ArrowRight, Laptop, ShieldAlert, Lock } from 'lucide-react';
 import { useHomeContent } from '../context/HomeContentContext';
+import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useHttpsCheck } from '../hooks/useHttpsCheck';
 
 export const PwaInstallBanner: React.FC = () => {
   const homeContext = useHomeContent();
   const content = homeContext?.content;
+
+  const { isInstallable, isInstalled, isIOS, isAndroid, isDesktop, isInIframe, install } = usePWAInstall();
+  const { isInsecureHttp, upgradeToHttps } = useHttpsCheck();
 
   const [activeThumbnail, setActiveThumbnail] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -53,115 +58,77 @@ export const PwaInstallBanner: React.FC = () => {
     return () => window.removeEventListener('jjf-thumbnail-changed' as any, handleThumbChange);
   }, [content?.appLogoUrl]);
 
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showBanner, setShowBanner] = useState(true);
-  const [isIos, setIsIos] = useState(false);
-  const [isAndroid, setIsAndroid] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [isInIframe, setIsInIframe] = useState(false);
+  const [showBanner, setShowBanner] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const isDismissed = sessionStorage.getItem('jjf_pwa_banner_dismissed') === 'true';
+    return !isDismissed;
+  });
   const [showModal, setShowModal] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
   const [activeTab, setActiveTab] = useState<'android' | 'ios' | 'desktop'>('android');
+  const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
-    // 1. Check if running inside iframe (e.g. AI Studio sandbox preview)
-    const inIframe = typeof window !== 'undefined' && window.self !== window.top;
-    setIsInIframe(inIframe);
+    if (isIOS) setActiveTab('ios');
+    else if (isAndroid) setActiveTab('android');
+    else setActiveTab('desktop');
+  }, [isIOS, isAndroid]);
 
-    // 2. Check if already installed / running in standalone mode
-    const isStandaloneMode =
-      typeof window !== 'undefined' &&
-      (window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://'));
-
-    setIsStandalone(isStandaloneMode);
-
-    // 3. Detect OS / Device
-    if (typeof window !== 'undefined') {
-      const ua = window.navigator.userAgent.toLowerCase();
-      const iosDevice = /iphone|ipad|ipod/.test(ua);
-      const androidDevice = /android/.test(ua);
-      const desktopDevice = !iosDevice && !androidDevice;
-
-      setIsIos(iosDevice);
-      setIsAndroid(androidDevice);
-      setIsDesktop(desktopDevice);
-
-      if (iosDevice) setActiveTab('ios');
-      else if (androidDevice) setActiveTab('android');
-      else setActiveTab('desktop');
-
-      // Check session dismissal
-      const isDismissed = sessionStorage.getItem('jjf_pwa_banner_dismissed') === 'true';
-      if (isDismissed || isStandaloneMode) {
-        setShowBanner(false);
+  useEffect(() => {
+    const handleOpenCustomModal = async () => {
+      if (isInstallable) {
+        setIsInstalling(true);
+        try {
+          const accepted = await install();
+          if (accepted) {
+            setShowBanner(false);
+            setShowModal(false);
+            return;
+          }
+        } finally {
+          setIsInstalling(false);
+        }
       }
-    }
-
-    // 4. Capture native beforeinstallprompt (Android Chrome / Edge / Desktop Chrome)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowBanner(true);
-    };
-
-    const handleAppInstalled = () => {
-      setIsStandalone(true);
-      setShowBanner(false);
-      setShowModal(false);
-      setDeferredPrompt(null);
-    };
-
-    const handleOpenCustomModal = () => {
       setShowModal(true);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
     window.addEventListener('open-pwa-install-modal', handleOpenCustomModal);
-
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('open-pwa-install-modal', handleOpenCustomModal);
     };
-  }, []);
+  }, [isInstallable, install]);
 
   const handleInstallClick = async () => {
-    // If native prompt is available (e.g. running in top level Chrome / Android)
-    if (deferredPrompt) {
+    if (isInstallable) {
+      setIsInstalling(true);
       try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
+        const accepted = await install();
+        if (accepted) {
           setShowBanner(false);
           setShowModal(false);
+          return;
         }
-        setDeferredPrompt(null);
-        return;
       } catch (err) {
-        console.debug('Error invoking deferredPrompt:', err);
+        console.debug('[PWA] Prompt outcome error:', err);
+      } finally {
+        setIsInstalling(false);
       }
     }
-
-    // Otherwise show rich guided modal with Direct Open button
     setShowModal(true);
   };
 
   const handleDismiss = () => {
     setShowBanner(false);
-    sessionStorage.setItem('jjf_pwa_banner_dismissed', 'true');
+    try {
+      sessionStorage.setItem('jjf_pwa_banner_dismissed', 'true');
+    } catch {}
   };
 
-  const handleOpenInNewTab = () => {
-    window.open(window.location.href, '_blank');
-  };
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : '/';
 
   return (
     <>
       {/* Top Floating PWA Banner (If not dismissed & not in standalone mode) */}
-      {showBanner && !isStandalone && (
+      {showBanner && !isInstalled && (
         <div className="relative z-40 bg-gradient-to-r from-[#8B0000] via-[#9E1B1B] to-[#700000] text-white px-3 sm:px-4 py-2 sm:py-2.5 shadow-md border-b-2 border-amber-400">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
             {/* Left: Organization icon & text */}
@@ -191,10 +158,11 @@ export const PwaInstallBanner: React.FC = () => {
             <div className="flex items-center gap-2 ml-auto sm:ml-0 shrink-0">
               <button
                 onClick={handleInstallClick}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 hover:from-amber-300 hover:to-yellow-200 text-[#8B0000] rounded-xl text-xs font-black shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-yellow-200"
+                disabled={isInstalling}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 hover:from-amber-300 hover:to-yellow-200 text-[#8B0000] rounded-xl text-xs font-black shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-yellow-200 disabled:opacity-50"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>ऐप इंस्टॉल करें</span>
+                <span>{isInstalling ? 'प्रतीक्षा करें...' : 'ऐप इंस्टॉल करें'}</span>
               </button>
               <button
                 onClick={handleDismiss}
@@ -245,6 +213,66 @@ export const PwaInstallBanner: React.FC = () => {
               </p>
             </div>
 
+            {/* If already installed */}
+            {isInstalled && (
+              <div className="mb-4 bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 text-emerald-950 text-xs flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <div className="font-bold text-emerald-800">ऐप पहले से आपके डिवाइस पर इंस्टॉल है!</div>
+                  <div className="text-emerald-700 text-[11px]">आप इसे अपने फ़ोन के होम स्क्रीन या ऐप लॉन्चर से कभी भी खोल सकते हैं।</div>
+                </div>
+              </div>
+            )}
+
+            {/* Insecure HTTP Warning Banner */}
+            {isInsecureHttp && (
+              <div className="mb-4 bg-red-50 border-2 border-red-400 rounded-xl p-3.5 text-red-950 text-xs shadow-xs">
+                <div className="font-black flex items-center gap-1.5 text-red-900 mb-1">
+                  <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>असुरक्षित कनेक्शन (Insecure HTTP Detected)</span>
+                </div>
+                <p className="text-red-900/90 text-[11px] leading-relaxed mb-2.5">
+                  ब्राउज़र सुरक्षा नीति (W3C PWA Standards) के कारण <strong>असुरक्षित HTTP</strong> पर PWA ऐप इंस्टॉलेशन पूरी तरह अक्षम (Disabled) रहता है। ऐप इंस्टॉल करने के लिए कृपया सुरक्षित HTTPS कनेक्शन पर जाएँ:
+                </p>
+                <button
+                  onClick={upgradeToHttps}
+                  className="w-full py-2 bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white rounded-lg font-black text-xs shadow flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                >
+                  <Lock className="w-3.5 h-3.5 text-yellow-300" />
+                  <span>सुरक्षित HTTPS पर जाएँ और इंस्टॉल करें</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Direct 1-Click Install Button if browser prompt is ready */}
+            {isInstallable && !isInstalled && (
+              <div className="mb-4">
+                <button
+                  onClick={async () => {
+                    setIsInstalling(true);
+                    try {
+                      const success = await install();
+                      if (success) {
+                        setShowModal(false);
+                        setShowBanner(false);
+                      }
+                    } finally {
+                      setIsInstalling(false);
+                    }
+                  }}
+                  disabled={isInstalling}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-700 hover:to-green-800 text-white rounded-xl font-black text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 animate-bounce" />
+                  <span>{isInstalling ? 'इंस्टॉल किया जा रहा है...' : '📲 1-क्लिक में अभी ऐप इंस्टॉल करें (Install Now)'}</span>
+                </button>
+                <p className="text-center text-[11px] text-emerald-700 font-semibold mt-1.5">
+                  ✓ ब्राउज़र ने सुरक्षित इंस्टॉलेशन अनुमति दी है। ऊपर दिए बटन पर क्लिक करें।
+                </p>
+              </div>
+            )}
+
             {/* Live App Icon Confirmation Box */}
             <div className="mb-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-2.5 flex items-center gap-3">
               <img
@@ -276,15 +304,17 @@ export const PwaInstallBanner: React.FC = () => {
                   <span>पूर्वावलोकन (Preview) मोड से डायरेक्ट इंस्टॉल:</span>
                 </div>
                 <p className="text-gray-700 text-[11px] leading-relaxed mb-2.5">
-                  ब्राउज़र सुरक्षा नियमों के अनुसार, 1-क्लिक ऑटो-इंस्टॉल प्रॉम्प्ट के लिए ऐप को नए टैब/सीधे ब्राउज़र में खोलना आवश्यक है:
+                  ब्राउज़र सुरक्षा नियमों के अनुसार पूर्वावलोकन (iframe) के अंदर 1-क्लिक ऑटो-इंस्टॉल ब्लॉक रहता है। सीधे ब्राउज़र में खोलने पर 1-क्लिक इंस्टॉल तुरंत सक्रिय हो जाता है:
                 </p>
-                <button
-                  onClick={handleOpenInNewTab}
+                <a
+                  href={currentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-full py-2 bg-gradient-to-r from-[#8B0000] to-red-800 hover:from-red-800 hover:to-red-900 text-white rounded-lg font-black text-xs shadow flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>नए टैब में खोलें और 1-क्लिक में इंस्टॉल करें</span>
-                </button>
+                </a>
               </div>
             )}
 
@@ -393,13 +423,15 @@ export const PwaInstallBanner: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="mt-5 flex gap-2.5">
-              <button
-                onClick={handleOpenInNewTab}
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>ब्राउज़र में खोलें</span>
-              </button>
+              </a>
               <button
                 onClick={() => setShowModal(false)}
                 className="flex-1 py-2.5 bg-[#8B0000] hover:bg-[#A52A2A] text-white rounded-xl text-xs font-black shadow-md cursor-pointer transition-colors"

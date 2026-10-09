@@ -259,9 +259,58 @@ app.delete('/api/app-logo', (req, res) => {
 app.get(['/manifest.json', '/api/manifest.json'], (req, res) => {
   const queryThumb = req.query.thumb as string | undefined;
   const rawThumb = queryThumb || serverAppThumbnailUrl;
-  const resolvedIcon = (rawThumb && rawThumb.trim() && rawThumb.trim() !== '/pwa-icon-512.png')
-    ? rawThumb.trim()
-    : '/pwa-icon-512.png';
+
+  let validCustomIcon = '';
+  if (rawThumb && rawThumb.trim() && rawThumb.trim() !== '/pwa-icon-512.png') {
+    const candidate = rawThumb.trim();
+    if (candidate.startsWith('/uploads/')) {
+      const fileName = path.basename(candidate.split('?')[0]);
+      if (fs.existsSync(path.join(UPLOADS_DIR, fileName))) {
+        validCustomIcon = candidate;
+      }
+    } else if (candidate.startsWith('data:image/') || candidate.startsWith('http://') || candidate.startsWith('https://')) {
+      validCustomIcon = candidate;
+    }
+  }
+
+  const baseIcons = [
+    {
+      src: '/pwa-icon-192.png',
+      type: 'image/png',
+      sizes: '192x192',
+      purpose: 'any'
+    },
+    {
+      src: '/pwa-icon-512.png',
+      type: 'image/png',
+      sizes: '512x512',
+      purpose: 'any'
+    },
+    {
+      src: '/pwa-icon-maskable-192.png',
+      type: 'image/png',
+      sizes: '192x192',
+      purpose: 'maskable'
+    },
+    {
+      src: '/pwa-icon-maskable-512.png',
+      type: 'image/png',
+      sizes: '512x512',
+      purpose: 'maskable'
+    }
+  ];
+
+  const icons = validCustomIcon
+    ? [
+        {
+          src: validCustomIcon,
+          type: validCustomIcon.endsWith('.png') ? 'image/png' : validCustomIcon.endsWith('.webp') ? 'image/webp' : 'image/jpeg',
+          sizes: '512x512',
+          purpose: 'any'
+        },
+        ...baseIcons
+      ]
+    : baseIcons;
 
   res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -274,60 +323,35 @@ app.get(['/manifest.json', '/api/manifest.json'], (req, res) => {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+    display_override: ['standalone', 'minimal-ui'],
     background_color: '#FFFDF9',
     theme_color: '#8B0000',
     orientation: 'portrait-primary',
     lang: 'hi',
     dir: 'ltr',
     categories: ['social', 'education', 'lifestyle', 'utilities'],
-    icons: [
-      {
-        src: resolvedIcon,
-        type: 'image/png',
-        sizes: '192x192',
-        purpose: 'any'
-      },
-      {
-        src: resolvedIcon,
-        type: 'image/png',
-        sizes: '512x512',
-        purpose: 'any'
-      },
-      {
-        src: resolvedIcon,
-        type: 'image/png',
-        sizes: '192x192',
-        purpose: 'maskable'
-      },
-      {
-        src: resolvedIcon,
-        type: 'image/png',
-        sizes: '512x512',
-        purpose: 'maskable'
-      }
-    ],
+    icons,
     shortcuts: [
       {
         name: 'सत्यापन पोर्टल (Verify Certificate)',
         short_name: 'सत्यापन',
         description: 'ऑनलाइन प्रमाण पत्र एवं पहचान पत्र सत्यापन करें',
         url: '/#verification',
-        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+        icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }]
       },
       {
         name: 'सहयोग / दान करें (Donate 80G)',
         short_name: 'दान करें',
         description: '80G कर छूट रसीद के साथ सुरक्षित दान करें',
         url: '/#donation',
-        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+        icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }]
       },
       {
         name: 'स्वयंसेवक कार्ड (Volunteer Card)',
         short_name: 'स्वयंसेवक',
         description: 'स्वयंसेवक डिजिटल पहचान पत्र प्राप्त करें',
         url: '/#volunteers',
-        icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }]
+        icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }]
       }
     ]
   });

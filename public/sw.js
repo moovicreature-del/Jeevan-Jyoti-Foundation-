@@ -2,7 +2,7 @@
 // JEEVAN JYOTI FOUNDATION - SERVICE WORKER (OFFLINE CERTIFICATES & ASSET CACHE)
 // ============================================================================
 
-const CACHE_NAME = 'jeevan-jyoti-v5-pwa';
+const CACHE_NAME = 'jeevan-jyoti-v6-pwa';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

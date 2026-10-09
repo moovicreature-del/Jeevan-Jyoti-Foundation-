@@ -732,15 +732,16 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       ]
     };
 
+    // 5. Update Web App Manifest dynamically so PWA download/install uses the new thumbnail
+    // NOTE: Chromium and W3C manifest specs reject blob: URLs for Web App Manifests, which breaks app installation.
+    // We update the href to the versioned HTTP manifest endpoint so the browser refetches without breaking PWA criteria.
     try {
-      const manifestBlob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/manifest+json' });
-      const manifestBlobUrl = URL.createObjectURL(manifestBlob);
       let manifestEl = document.querySelector('link[rel="manifest"]');
       if (manifestEl) {
-        manifestEl.setAttribute('href', manifestBlobUrl);
+        manifestEl.setAttribute('href', `/manifest.json?v=${Date.now()}`);
       }
     } catch (e) {
-      console.debug('Dynamic manifest blob update notice:', e);
+      console.debug('Dynamic manifest refresh notice:', e);
     }
 
     // 6. Notify active Service Worker controller to update cached app icons

@@ -9,7 +9,9 @@ import {
   Sparkles,
   Camera,
   Building2,
-  Users
+  Users,
+  Share2,
+  Check
 } from 'lucide-react';
 import { FOUNDATION_INFO } from '../data/foundationData';
 import { useLanguage } from '../context/LanguageContext';
@@ -52,9 +54,61 @@ export const HeroSection: React.FC<Props> = ({
       );
 
   const slideCount = content.sliderPhotos?.length || 4;
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
+
+  const handleShareImpact = async () => {
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const shareTitle = isHindi ? FOUNDATION_INFO.nameHindi : FOUNDATION_INFO.nameEnglish;
+    const shareText = isHindi
+      ? `${FOUNDATION_INFO.nameHindi} (${FOUNDATION_INFO.nameEnglish})\n📍 ${FOUNDATION_INFO.address}\n\n🌟 हमारा मिशन: "सेवा • शिक्षा • स्वास्थ्य"\nग़ाज़ीपुर के ग्रामीण व निर्धन बच्चों को निःशुल्क गुणवत्तापूर्ण शिक्षा, अन्नपूर्णा भोजन सेवा एवं निःशुल्क चिकित्सा शिविर।\n\nहमारे मिशन से जुड़ें और सहयोग करें:`
+      : `${FOUNDATION_INFO.nameEnglish}\n📍 Ghazipur, Uttar Pradesh, India\n\n🌟 Mission: Free evening schools for underprivileged children, Annapurna daily meals, healthcare camps & women empowerment.\n\nJoin and support our mission:`;
+
+    const sharePayload = {
+      title: shareTitle,
+      text: shareText,
+      url: shareUrl,
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share(sharePayload);
+        setShareStatus('shared');
+        setTimeout(() => setShareStatus('idle'), 3000);
+        return;
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') {
+          // User dismissed the native share sheet
+          return;
+        }
+      }
+    }
+
+    // Fallback: Copy mission and link to clipboard if Web Share API is unavailable or declined
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = `${shareText}\n${shareUrl}`;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setShareStatus('copied');
+      setTimeout(() => setShareStatus('idle'), 3000);
+    } catch {
+      // In case copy fails
+    }
+  };
 
   return (
-    <section className="relative overflow-hidden py-10 lg:py-16 bg-gradient-to-b from-amber-50/60 via-white to-amber-50/30">
+    <section
+      id="hero-section"
+      className="relative overflow-hidden py-10 lg:py-16 bg-gradient-to-b from-amber-50/60 via-white to-amber-50/30"
+    >
       {/* Decorative background elements */}
       <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-amber-200/40 blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 rounded-full bg-red-200/30 blur-3xl pointer-events-none" />
@@ -118,6 +172,31 @@ export const HeroSection: React.FC<Props> = ({
               >
                 <Users className="w-5 h-5 text-[#8B0000]" />
                 <span>{isHindi ? '👥 स्टाफ रजिस्ट्रेशन व आई-कार्ड' : '👥 Staff Registration & ID'}</span>
+              </button>
+
+              {/* Share Your Impact (Web Share API) Button */}
+              <button
+                onClick={handleShareImpact}
+                className="px-6 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-2xl text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5 border border-emerald-600 active:scale-95"
+                title={isHindi ? "संस्था का मिशन व प्रभाव साझा करें" : "Share Foundation Mission & Impact"}
+                aria-label="Share Your Impact"
+              >
+                {shareStatus === 'copied' ? (
+                  <>
+                    <Check className="w-5 h-5 text-emerald-200" />
+                    <span>{isHindi ? 'मिशन कॉपी हुआ!' : 'Copied to Clipboard!'}</span>
+                  </>
+                ) : shareStatus === 'shared' ? (
+                  <>
+                    <Check className="w-5 h-5 text-emerald-200" />
+                    <span>{isHindi ? 'साझा किया गया!' : 'Shared Successfully!'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-5 h-5 text-white" />
+                    <span>Share Your Impact</span>
+                  </>
+                )}
               </button>
             </div>
 

@@ -295,9 +295,59 @@ function apiDevServerPlugin(): Plugin {
 
         // Direct dynamic manifest handler for PWA app download
         if (req.url === '/manifest.json' || req.url?.startsWith('/manifest.json?') || req.url === '/api/manifest.json') {
-          const resolvedIcon = (devAppThumbnailUrl && devAppThumbnailUrl.trim() && devAppThumbnailUrl !== '/pwa-icon-512.png')
-            ? devAppThumbnailUrl.trim()
-            : '/pwa-icon-512.png';
+          // Check if custom thumbnail exists and is valid on disk or memory
+          let validCustomIcon = '';
+          if (devAppThumbnailUrl && devAppThumbnailUrl.trim() && devAppThumbnailUrl !== '/pwa-icon-512.png') {
+            const rawUrl = devAppThumbnailUrl.trim();
+            if (rawUrl.startsWith('/uploads/')) {
+              const fileName = path.basename(rawUrl.split('?')[0]);
+              if (fs.existsSync(path.join(UPLOADS_DIR, fileName))) {
+                validCustomIcon = rawUrl;
+              }
+            } else if (rawUrl.startsWith('data:image/') || rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+              validCustomIcon = rawUrl;
+            }
+          }
+
+          const baseIcons = [
+            {
+              src: '/pwa-icon-192.png',
+              type: 'image/png',
+              sizes: '192x192',
+              purpose: 'any'
+            },
+            {
+              src: '/pwa-icon-512.png',
+              type: 'image/png',
+              sizes: '512x512',
+              purpose: 'any'
+            },
+            {
+              src: '/pwa-icon-maskable-192.png',
+              type: 'image/png',
+              sizes: '192x192',
+              purpose: 'maskable'
+            },
+            {
+              src: '/pwa-icon-maskable-512.png',
+              type: 'image/png',
+              sizes: '512x512',
+              purpose: 'maskable'
+            }
+          ];
+
+          const icons = validCustomIcon
+            ? [
+                {
+                  src: validCustomIcon,
+                  type: validCustomIcon.endsWith('.png') ? 'image/png' : validCustomIcon.endsWith('.webp') ? 'image/webp' : 'image/jpeg',
+                  sizes: '512x512',
+                  purpose: 'any'
+                },
+                ...baseIcons
+              ]
+            : baseIcons;
+
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -309,23 +359,18 @@ function apiDevServerPlugin(): Plugin {
             start_url: '/',
             scope: '/',
             display: 'standalone',
-            display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+            display_override: ['standalone', 'minimal-ui'],
             background_color: '#FFFDF9',
             theme_color: '#8B0000',
             orientation: 'portrait-primary',
             lang: 'hi',
             dir: 'ltr',
             categories: ['social', 'education', 'lifestyle', 'utilities'],
-            icons: [
-              { src: resolvedIcon, sizes: '192x192', type: 'image/png', purpose: 'any' },
-              { src: resolvedIcon, sizes: '512x512', type: 'image/png', purpose: 'any' },
-              { src: resolvedIcon, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-              { src: resolvedIcon, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-            ],
+            icons,
             shortcuts: [
-              { name: 'सत्यापन पोर्टल (Verify Certificate)', short_name: 'सत्यापन', url: '/#verification', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] },
-              { name: 'सहयोग / दान करें (Donate 80G)', short_name: 'दान करें', url: '/#donation', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] },
-              { name: 'स्वयंसेवक कार्ड (Volunteer Card)', short_name: 'स्वयंसेवक', url: '/#volunteers', icons: [{ src: resolvedIcon, sizes: '192x192', type: 'image/png' }] }
+              { name: 'सत्यापन पोर्टल (Verify Certificate)', short_name: 'सत्यापन', url: '/#verification', icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }] },
+              { name: 'सहयोग / दान करें (Donate 80G)', short_name: 'दान करें', url: '/#donation', icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }] },
+              { name: 'स्वयंसेवक कार्ड (Volunteer Card)', short_name: 'स्वयंसेवक', url: '/#volunteers', icons: [{ src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }] }
             ]
           }));
         }
@@ -363,7 +408,19 @@ function apiDevServerPlugin(): Plugin {
         if (req.url?.startsWith('/api/app-thumbnail')) {
           if (req.method === 'POST') {
             const body = await getBody();
-            devAppThumbnailUrl = typeof body?.thumbnailUrl === 'string' ? body.thumbnailUrl.trim() : '';
+            const candidate = typeof body?.thumbnailUrl === 'string' ? body.thumbnailUrl.trim() : '';
+            if (candidate && candidate.startsWith('/uploads/')) {
+              const fileName = path.basename(candidate.split('?')[0]);
+              if (fs.existsSync(path.join(UPLOADS_DIR, fileName))) {
+                devAppThumbnailUrl = candidate;
+              } else {
+                devAppThumbnailUrl = '';
+              }
+            } else if (candidate.startsWith('data:image/') || candidate.startsWith('http://') || candidate.startsWith('https://')) {
+              devAppThumbnailUrl = candidate;
+            } else {
+              devAppThumbnailUrl = '';
+            }
             return sendJson(200, { success: true, appThumbnailUrl: devAppThumbnailUrl });
           }
           if (req.method === 'DELETE') {

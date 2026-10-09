@@ -28,6 +28,7 @@ const RecentEventsCarousel = React.lazy(() => import('./components/RecentEventsC
 import { JyotiBot } from './components/JyotiBot';
 import { NetworkStatusToast } from './components/NetworkStatusToast';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
+import { InsecureHttpAlert } from './components/common/InsecureHttpAlert';
 import { FloatingShareToolbar } from './components/FloatingShareToolbar';
 import { FestivalGreetingsPortal } from './components/FestivalGreetingsPortal';
 import { ProfessionalFormsPortal } from './components/ProfessionalFormsPortal';
@@ -206,6 +207,7 @@ export function App() {
   if (verifyRouteId) {
     return (
       <div className="min-h-screen bg-[#FFFDF9] text-gray-900 flex flex-col font-sans">
+        <InsecureHttpAlert />
         <VerifyPage
           initialCertId={verifyRouteId}
           onBack={() => setVerifyRouteId(null)}
@@ -217,6 +219,9 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-gray-900 flex flex-col font-sans selection:bg-amber-200 relative">
+      {/* Insecure HTTP warning alert for PWA compliance */}
+      <InsecureHttpAlert />
+
       {/* PWA Notification banner */}
       <PwaInstallBanner />
 
