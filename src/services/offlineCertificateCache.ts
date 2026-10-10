@@ -1,6 +1,7 @@
 // ============================================================================
 // JEEVAN JYOTI FOUNDATION - OFFLINE CERTIFICATE & OTP CACHE SERVICE
 // जीवन ज्योति फाउंडेशन - ऑफ़लाइन प्रमाण पत्र एवं OTP सत्यापन कैश सर्विस (Service Worker & LocalStorage Fallback)
+// Includes Static Image & Branding Asset Cache-Busting Mechanism
 // ============================================================================
 
 import { RegisteredCertificateItem, normalizePhoneNumber } from './certificateRegistryService';
@@ -8,6 +9,25 @@ import { RegisteredCertificateItem, normalizePhoneNumber } from './certificateRe
 export const OFFLINE_CERT_CACHE_PREFIX = 'jjf_offline_certs_';
 export const OFFLINE_PHONE_INDEX_KEY = 'jjf_offline_verified_phones_index';
 export const OFFLINE_LAST_VERIFIED_PHONE_KEY = 'jjf_last_verified_phone';
+export const BRANDING_CACHE_TIMESTAMP_KEY = 'jjf_branding_cache_timestamp';
+
+/**
+ * Standard list of core branding and icon assets to keep fresh via cache-busting
+ */
+export const CORE_BRANDING_ASSET_PATHS: readonly string[] = [
+  '/logo.png',
+  '/logo.svg',
+  '/favicon.svg',
+  '/apple-touch-icon.png',
+  '/pwa-icon-192.png',
+  '/pwa-icon-512.png',
+  '/pwa-icon-maskable-192.png',
+  '/pwa-icon-maskable-512.png',
+  '/signature-shailesh-royalblue.svg',
+  '/signature-shailesh-royalblue.png',
+  '/signature-shailesh-overlay.svg',
+  '/signature-shailesh-overlay.png'
+];
 
 export interface CachedPhoneSession {
   phone: string;
@@ -29,6 +49,146 @@ export interface CachedPhoneSummary {
   formattedDate: string;
 }
 
+// In-memory fallback timestamp if localStorage is inaccessible
+let inMemoryBrandingTimestamp = Date.now();
+
+/**
+ * Get the active branding cache-busting timestamp.
+ * Persisted in localStorage so all tabs/windows share the same cache-busting cycle.
+ */
+export function getBrandingCacheBustTimestamp(): number {
+  if (typeof window === 'undefined') return inMemoryBrandingTimestamp;
+  try {
+    const stored = localStorage.getItem(BRANDING_CACHE_TIMESTAMP_KEY);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    const current = Date.now();
+    localStorage.setItem(BRANDING_CACHE_TIMESTAMP_KEY, current.toString());
+    inMemoryBrandingTimestamp = current;
+    return current;
+  } catch {
+    return inMemoryBrandingTimestamp;
+  }
+}
+
+/**
+ * Force refresh the branding cache-buster timestamp.
+ * Call this whenever an administrator uploads or changes an app logo, thumbnail, or seal.
+ */
+export function refreshBrandingCacheBuster(): number {
+  const newTimestamp = Date.now();
+  inMemoryBrandingTimestamp = newTimestamp;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(BRANDING_CACHE_TIMESTAMP_KEY, newTimestamp.toString());
+      window.dispatchEvent(
+        new CustomEvent('jjf-branding-cache-bust-updated', {
+          detail: { timestamp: newTimestamp }
+        })
+      );
+    } catch (err) {
+      console.warn('Unable to persist updated branding cache timestamp:', err);
+    }
+  }
+  return newTimestamp;
+}
+
+/**
+ * Determine if a given asset path or URL is an icon, logo, seal, or static branding asset
+ */
+export function isBrandingAssetUrl(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('logo') ||
+    lower.includes('thumb') ||
+    lower.includes('seal') ||
+    lower.includes('icon') ||
+    lower.includes('signature') ||
+    lower.includes('favicon') ||
+    lower.startsWith('/uploads/') ||
+    lower.startsWith('uploads/') ||
+    CORE_BRANDING_ASSET_PATHS.some((path) => lower.includes(path.toLowerCase()))
+  );
+}
+
+/**
+ * Cache-busting mechanism for static images and branding assets.
+ * Appends a timestamp query parameter (?t=...) to icon and branding asset requests,
+ * ensuring users and browsers always fetch the updated versions without stale cache locks.
+ *
+ * @param url The image URL or asset path
+ * @param customTimestamp Optional specific timestamp override; defaults to active branding timestamp
+ */
+export function getCacheBustedImageUrl(url?: string | null, customTimestamp?: number): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Data URLs (base64) and Blob URLs cannot and should not have query parameters appended
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  const timestamp = customTimestamp && customTimestamp > 0 ? customTimestamp : getBrandingCacheBustTimestamp();
+
+  try {
+    // Relative URL handling (e.g. "/pwa-icon-512.png")
+    if (trimmed.startsWith('/') || !trimmed.includes('://')) {
+      const [pathAndQuery, hash] = trimmed.split('#');
+      const [basePath, existingQuery] = pathAndQuery.split('?');
+      const params = new URLSearchParams(existingQuery || '');
+      params.set('t', timestamp.toString());
+      const newQuery = params.toString();
+      return `${basePath}?${newQuery}${hash ? `#${hash}` : ''}`;
+    }
+
+    // Absolute HTTP/HTTPS URLs
+    const parsed = new URL(trimmed);
+    parsed.searchParams.set('t', timestamp.toString());
+    return parsed.toString();
+  } catch {
+    // Fallback string manipulation if URL parsing fails
+    const separator = trimmed.includes('?') ? '&' : '?';
+    return `${trimmed}${separator}t=${timestamp}`;
+  }
+}
+
+/**
+ * Convenient alias for getCacheBustedImageUrl
+ */
+export const cacheBustStaticAssetUrl = getCacheBustedImageUrl;
+
+/**
+ * Prefetch and cache core branding and icon assets with cache-busting timestamp
+ * to ensure that browser HTTP cache and Service Worker are primed with fresh assets.
+ */
+export async function prefetchAndCacheBrandingAssets(additionalUrls: string[] = []): Promise<void> {
+  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+
+  const urlsToPrefetch = Array.from(new Set([...CORE_BRANDING_ASSET_PATHS, ...additionalUrls])).filter(Boolean);
+  const timestamp = getBrandingCacheBustTimestamp();
+
+  await Promise.allSettled(
+    urlsToPrefetch.map(async (rawUrl) => {
+      try {
+        const bustedUrl = getCacheBustedImageUrl(rawUrl, timestamp);
+        await fetch(bustedUrl, {
+          method: 'GET',
+          cache: 'reload',
+          mode: 'cors'
+        });
+      } catch (err) {
+        console.debug('Branding asset prefetch notice for', rawUrl, err);
+      }
+    })
+  );
+}
+
 /**
  * Format current timestamp for user display in Indian locale
  */
@@ -47,7 +207,8 @@ function getFormattedTimestamp(date: Date = new Date()): string {
 }
 
 /**
- * Save verified certificate records for a specific phone number into persistent offline cache
+ * Save verified certificate records for a specific phone number into persistent offline cache.
+ * Automatically applies cache-busting to photo and branding asset references.
  */
 export function savePhoneCertificatesToOfflineCache(
   phoneNumber: string,
@@ -58,14 +219,27 @@ export function savePhoneCertificatesToOfflineCache(
   if (!cleanPhone || cleanPhone.length < 10) return null;
 
   const now = new Date();
+  const currentTimestamp = getBrandingCacheBustTimestamp();
+
+  // Ensure certificates store cache-busted photo and seal references
+  const sanitizedCertificates = (certificates || []).map((cert) => {
+    if (cert.photoUrl && !cert.photoUrl.startsWith('data:') && !cert.photoUrl.startsWith('blob:')) {
+      return {
+        ...cert,
+        photoUrl: getCacheBustedImageUrl(cert.photoUrl, currentTimestamp)
+      };
+    }
+    return cert;
+  });
+
   const session: CachedPhoneSession = {
     phone: phoneNumber,
     normalizedPhone: cleanPhone,
-    certificates: certificates || [],
+    certificates: sanitizedCertificates,
     cachedAt: now.getTime(),
     formattedDate: getFormattedTimestamp(now),
-    recipientName: certificates?.[0]?.recipientName || 'सम्मानित नागरिक',
-    totalCount: certificates?.length || 0,
+    recipientName: sanitizedCertificates?.[0]?.recipientName || 'सम्मानित नागरिक',
+    totalCount: sanitizedCertificates?.length || 0,
     syncSource
   };
 
@@ -95,7 +269,8 @@ export function savePhoneCertificatesToOfflineCache(
 }
 
 /**
- * Retrieve cached certificates for a phone number from offline storage
+ * Retrieve cached certificates for a phone number from offline storage.
+ * Dynamically ensures returned certificates have cache-busted photo URLs.
  */
 export function getOfflineCachedCertificates(phoneNumber: string): CachedPhoneSession | null {
   const cleanPhone = normalizePhoneNumber(phoneNumber);
@@ -108,6 +283,16 @@ export function getOfflineCachedCertificates(phoneNumber: string): CachedPhoneSe
 
     const parsed: CachedPhoneSession = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.certificates)) {
+      const currentTimestamp = getBrandingCacheBustTimestamp();
+      parsed.certificates = parsed.certificates.map((cert) => {
+        if (cert.photoUrl && !cert.photoUrl.startsWith('data:') && !cert.photoUrl.startsWith('blob:')) {
+          return {
+            ...cert,
+            photoUrl: getCacheBustedImageUrl(cert.photoUrl, currentTimestamp)
+          };
+        }
+        return cert;
+      });
       return parsed;
     }
   } catch (err) {
@@ -188,7 +373,9 @@ export function getLastVerifiedPhoneNumber(): string | null {
 }
 
 /**
- * Register Service Worker for offline PWA capabilities and certificate asset caching
+ * Register Service Worker for offline PWA capabilities and certificate asset caching.
+ * Appends a cache-busting timestamp version to the Service Worker registration,
+ * and triggers background prefetching of core branding assets with query timestamps.
  */
 export function registerCertificateServiceWorker(): void {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -196,10 +383,24 @@ export function registerCertificateServiceWorker(): void {
   }
 
   const register = () => {
+    const brandingTimestamp = getBrandingCacheBustTimestamp();
+    // Cache-busting parameter on the service worker script itself
+    const swUrl = `/sw.js?v=${brandingTimestamp}`;
+
     navigator.serviceWorker
-      .register('/sw.js', { scope: '/' })
+      .register(swUrl, { scope: '/' })
       .then((registration) => {
         console.log('Jeevan Jyoti PWA Service Worker active with scope:', registration.scope);
+        // Prefetch core branding assets in background to ensure fresh cache
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(() => {
+            prefetchAndCacheBrandingAssets();
+          });
+        } else {
+          setTimeout(() => {
+            prefetchAndCacheBrandingAssets();
+          }, 1500);
+        }
       })
       .catch((err) => {
         console.debug('Service Worker registration skipped/failed:', err);

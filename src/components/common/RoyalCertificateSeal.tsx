@@ -6,6 +6,7 @@ import {
   OFFICIAL_SEAL_BASE64_DATA_URL,
   getActiveOfficialSealUrl
 } from '../../data/officialSealData';
+import { getCacheBustedImageUrl } from '../../services/offlineCertificateCache';
 
 interface RoyalCertificateSealProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'auto' | 'responsive' | number;
@@ -207,7 +208,7 @@ export const RoyalCertificateSeal: React.FC<RoyalCertificateSealProps> = ({
           {hasCustomUploadedSeal ? (
             <img
               data-official-seal="true"
-              src={activeSealUrl}
+              src={getCacheBustedImageUrl(activeSealUrl)}
               alt="Official Certificate Seal"
               crossOrigin="anonymous"
               className="w-full h-full object-contain pointer-events-none drop-shadow-xs"

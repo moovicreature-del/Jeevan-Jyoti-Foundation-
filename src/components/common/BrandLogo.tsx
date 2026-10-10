@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHomeContent } from '../../context/HomeContentContext';
 import { getOptimizedImageUrl } from '../../utils/imageOptimizer';
+import { getCacheBustedImageUrl } from '../../services/offlineCertificateCache';
 
 export interface BrandLogoProps {
   size?: number | string;
@@ -117,7 +118,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   }, [activeLogoUrl]);
 
   const finalOpacity = watermark ? (opacity ?? 0.12) : (opacity ?? 1);
-  const effectiveLogoUrl = activeLogoUrl || '/logo.png';
+  const effectiveLogoUrl = getCacheBustedImageUrl(activeLogoUrl || '/logo.png');
 
   // Render official logo (custom or official default emblem)
   if (effectiveLogoUrl && !imgFailed && !forceVector) {

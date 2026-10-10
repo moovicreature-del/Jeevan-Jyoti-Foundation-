@@ -31,6 +31,7 @@ import {
 import { db, storage, isMockFirebase } from '../lib/firebase';
 import { AdminUser, AppHomeContent, NoticeItem, AdminActivityLog, DonationPaymentSettings, SliderPhotoItem } from '../types';
 import { compressImageFile } from '../utils/imageOptimizer';
+import { refreshBrandingCacheBuster } from './offlineCertificateCache';
 
 // डिफ़ॉल्ट दान एवं बैंक/UPI भुगतान सेटिंग्स (Default Donation Payment & Bank Settings)
 export const DEFAULT_DONATION_PAYMENT_SETTINGS: DonationPaymentSettings = {
@@ -520,6 +521,7 @@ export async function updateAppLogo(
   } catch {}
 
   // 3. Dispatch custom event for real-time instantaneous DOM / component update
+  refreshBrandingCacheBuster();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-logo-changed', { detail: logoUrl }));
   }
@@ -627,6 +629,11 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
     : '/pwa-icon-512.png';
 
   try {
+    const timestamp = Date.now();
+    const cacheBustedThumb = resolvedThumb.startsWith('data:') || resolvedThumb.startsWith('blob:')
+      ? resolvedThumb
+      : `${resolvedThumb}${resolvedThumb.includes('?') ? '&' : '?'}t=${timestamp}`;
+
     // 1. Update Open Graph image (WhatsApp, Facebook, LinkedIn link share cards)
     let ogImage = document.querySelector('meta[property="og:image"]');
     if (!ogImage) {
@@ -634,7 +641,7 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       ogImage.setAttribute('property', 'og:image');
       document.head.appendChild(ogImage);
     }
-    ogImage.setAttribute('content', resolvedThumb);
+    ogImage.setAttribute('content', cacheBustedThumb);
 
     // 2. Update Twitter Card image
     let twitterImage = document.querySelector('meta[name="twitter:image"]');
@@ -643,109 +650,39 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       twitterImage.setAttribute('name', 'twitter:image');
       document.head.appendChild(twitterImage);
     }
-    twitterImage.setAttribute('content', resolvedThumb);
+    twitterImage.setAttribute('content', cacheBustedThumb);
 
-    // 3. Update Apple Touch Icon (iOS Home Screen Shortcut) - all sizes
-    const appleIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
-    if (appleIcons.length > 0) {
-      appleIcons.forEach((el) => el.setAttribute('href', resolvedThumb));
-    } else {
-      const appleLink = document.createElement('link');
-      appleLink.setAttribute('rel', 'apple-touch-icon');
-      appleLink.setAttribute('href', resolvedThumb);
-      document.head.appendChild(appleLink);
-    }
+    // 3. Force-refresh Apple Touch Icon (iOS Home Screen Shortcut) - remove & recreate
+    document.querySelectorAll('link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]').forEach((el) => el.remove());
+    const appleLink = document.createElement('link');
+    appleLink.rel = 'apple-touch-icon';
+    appleLink.sizes = '180x180';
+    appleLink.href = cacheBustedThumb;
+    document.head.appendChild(appleLink);
 
-    // 4. Update Favicon (link[rel="icon"])
-    const favicons = document.querySelectorAll('link[rel="icon"]');
-    if (favicons.length > 0) {
-      favicons.forEach((el) => el.setAttribute('href', resolvedThumb));
-    }
+    // 4. Force-refresh Favicons: remove all existing icon links and recreate fresh elements
+    document.querySelectorAll('link[rel*="icon"]').forEach((el) => el.remove());
 
-    // 5. Update Web App Manifest dynamically so PWA download/install uses the new thumbnail
-    const dynamicManifest = {
-      id: '/',
-      name: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर | Jeevan Jyoti Foundation',
-      short_name: 'Jeevan Jyoti',
-      description: 'जीवन ज्योति फाउंडेशन ग़ाज़ीपुर — बाल शिक्षा, स्वास्थ्य, अन्नपूर्णा भोजन सेवा एवं ऑनलाइन प्रमाण पत्र सत्यापन पोर्टल।',
-      start_url: '/',
-      scope: '/',
-      display: 'standalone',
-      display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
-      background_color: '#FFFDF9',
-      theme_color: '#8B0000',
-      orientation: 'portrait-primary',
-      lang: 'hi',
-      dir: 'ltr',
-      categories: ['social', 'education', 'lifestyle', 'utilities'],
-      icons: [
-        {
-          src: resolvedThumb,
-          type: 'image/png',
-          sizes: '192x192',
-          purpose: 'any'
-        },
-        {
-          src: resolvedThumb,
-          type: 'image/png',
-          sizes: '512x512',
-          purpose: 'any'
-        },
-        {
-          src: resolvedThumb,
-          type: 'image/png',
-          sizes: '192x192',
-          purpose: 'maskable'
-        },
-        {
-          src: resolvedThumb,
-          type: 'image/png',
-          sizes: '512x512',
-          purpose: 'maskable'
-        },
-        {
-          src: resolvedThumb,
-          type: 'image/png',
-          sizes: 'any',
-          purpose: 'any'
-        }
-      ],
-      shortcuts: [
-        {
-          name: 'सत्यापन पोर्टल (Verify Certificate)',
-          short_name: 'सत्यापन',
-          description: 'ऑनलाइन प्रमाण पत्र एवं पहचान पत्र सत्यापन करें',
-          url: '/#verification',
-          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
-        },
-        {
-          name: 'सहयोग / दान करें (Donate 80G)',
-          short_name: 'दान करें',
-          description: '80G कर छूट रसीद के साथ सुरक्षित दान करें',
-          url: '/#donation',
-          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
-        },
-        {
-          name: 'स्वयंसेवक कार्ड (Volunteer Card)',
-          short_name: 'स्वयंसेवक',
-          description: 'स्वयंसेवक डिजिटल पहचान पत्र प्राप्त करें',
-          url: '/#volunteers',
-          icons: [{ src: resolvedThumb, sizes: '192x192', type: 'image/png' }]
-        }
-      ]
-    };
+    const pngFavicon = document.createElement('link');
+    pngFavicon.rel = 'icon';
+    pngFavicon.type = 'image/png';
+    pngFavicon.sizes = '32x32';
+    pngFavicon.href = cacheBustedThumb;
+    document.head.appendChild(pngFavicon);
 
-    // 5. Update Web App Manifest dynamically so PWA download/install uses the new thumbnail
-    // NOTE: Chromium and W3C manifest specs reject blob: URLs for Web App Manifests, which breaks app installation.
-    // We update the href to the versioned HTTP manifest endpoint so the browser refetches without breaking PWA criteria.
-    try {
-      let manifestEl = document.querySelector('link[rel="manifest"]');
-      if (manifestEl) {
-        manifestEl.setAttribute('href', `/manifest.json?v=${Date.now()}`);
-      }
-    } catch (e) {
-      console.debug('Dynamic manifest refresh notice:', e);
-    }
+    const standardFavicon = document.createElement('link');
+    standardFavicon.rel = 'shortcut icon';
+    standardFavicon.href = cacheBustedThumb;
+    document.head.appendChild(standardFavicon);
+
+    // 5. Force-refresh Web App Manifest dynamically so PWA download/install uses the new thumbnail
+    // Chromium and W3C require fresh link tag with cache-busting timestamp
+    document.querySelectorAll('link[rel="manifest"]').forEach((el) => el.remove());
+    const manifestLink = document.createElement('link');
+    manifestLink.rel = 'manifest';
+    const manifestUrl = `/manifest.json?v=${timestamp}&thumb=${encodeURIComponent(resolvedThumb)}`;
+    manifestLink.href = manifestUrl;
+    document.head.appendChild(manifestLink);
 
     // 6. Notify active Service Worker controller to update cached app icons
     try {
@@ -759,7 +696,7 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       console.debug('Service Worker thumbnail sync notice:', e);
     }
 
-    // 7. Sync with server-side endpoint in background
+    // 7. Sync with server-side endpoint in background via /api/app-thumbnail
     try {
       fetch('/api/app-thumbnail', {
         method: 'POST',
@@ -768,9 +705,75 @@ export function applyDynamicAppThumbnail(thumbnailUrl: string = ''): void {
       }).catch(() => {});
     } catch (e) {}
 
+    // 8. Dispatch event so UI components can reflect live DOM <head> link state
+    window.dispatchEvent(new CustomEvent('jjf-favicon-manifest-refreshed', {
+      detail: {
+        iconUrl: resolvedThumb,
+        cacheBustedIconUrl: cacheBustedThumb,
+        manifestHref: manifestUrl,
+        timestamp
+      }
+    }));
+
   } catch (e) {
     console.warn('Error applying dynamic app thumbnail:', e);
   }
+}
+
+/**
+ * फ़ोर्स-रिफ्रेश ब्राउज़र फेविकॉन एवं PWA मेनिफेस्ट लिंक टैग्स (Force-refresh Favicon & Manifest Link Tags via /api/app-thumbnail)
+ * Uses the existing /api/app-thumbnail endpoint logic to force-refresh the browser's link tags when a new icon is uploaded
+ */
+export async function forceRefreshFaviconAndManifest(
+  iconUrl?: string,
+  adminName: string = 'व्यवस्थापक',
+  adminUid: string = 'admin'
+): Promise<{
+  success: boolean;
+  message: string;
+  activeIconUrl: string;
+  manifestHref: string;
+  faviconHref: string;
+}> {
+  const currentStored = typeof localStorage !== 'undefined' ? localStorage.getItem('jjf_custom_thumbnail') : '';
+  const resolved = (iconUrl && iconUrl.trim()) ? iconUrl.trim() : (currentStored || '/pwa-icon-512.png');
+
+  // 1. Sync to server /api/app-thumbnail
+  try {
+    await fetch('/api/app-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thumbnailUrl: resolved })
+    });
+  } catch (err) {
+    console.warn('Server /api/app-thumbnail sync notice:', err);
+  }
+
+  // 2. Force-refresh browser link tags in DOM
+  applyDynamicAppThumbnail(resolved);
+
+  // 3. Refresh branding cache timestamp
+  refreshBrandingCacheBuster();
+
+  // 4. Activity Audit Log
+  logAdminActivity({
+    adminUid,
+    adminName,
+    action: 'FAVICON_MANIFEST_REFRESHED',
+    details: `ब्राउज़र फेविकॉन व PWA मेनिफेस्ट लिंक टैग्स को फ़ोर्स-रिफ्रेश किया गया (${adminName} द्वारा)`
+  }).catch(() => {});
+
+  const timestamp = Date.now();
+  const faviconHref = resolved.startsWith('data:') ? resolved : `${resolved}${resolved.includes('?') ? '&' : '?'}t=${timestamp}`;
+  const manifestHref = `/manifest.json?v=${timestamp}&thumb=${encodeURIComponent(resolved)}`;
+
+  return {
+    success: true,
+    message: 'ब्राउज़र फेविकॉन और PWA मेनिफेस्ट लिंक टैग्स सफलतापूर्वक फ़ोर्स-रिफ्रेश हो गए!',
+    activeIconUrl: resolved,
+    manifestHref,
+    faviconHref
+  };
 }
 
 /**
@@ -825,6 +828,7 @@ export async function updateAppThumbnail(
   applyDynamicAppThumbnail(thumbnailUrl);
 
   // 4. Dispatch custom event for real-time instantaneous DOM / component update
+  refreshBrandingCacheBuster();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: thumbnailUrl }));
   }
@@ -1250,6 +1254,7 @@ export async function updateCertificateSeal(
   }
 
   // 2. Dispatch custom event for real-time instantaneous DOM / certificate modal update
+  refreshBrandingCacheBuster();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-seal-changed', {
       detail: { sealUrl, sealVariant }
@@ -1468,6 +1473,7 @@ export async function deleteAllLogosSealsAndThumbnailsPermanently(
   applyDynamicAppThumbnail('/pwa-icon-512.png');
 
   // 4. Dispatch custom events for real-time instantaneous update across all components
+  refreshBrandingCacheBuster();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-logo-changed', { detail: '' }));
     window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: '' }));
