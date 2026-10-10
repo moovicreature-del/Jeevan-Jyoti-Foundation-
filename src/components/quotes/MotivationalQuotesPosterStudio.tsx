@@ -1154,7 +1154,7 @@ export const MotivationalQuotesPosterStudio: React.FC<Props> = ({ onClose, isMod
       const sealImg = new Image();
       sealImg.crossOrigin = 'anonymous';
       await new Promise<void>((resolve) => {
-        const primarySrc = OFFICIAL_SEAL_BASE64_DATA_URL || getActiveOfficialSealUrl();
+        const primarySrc = getActiveOfficialSealUrl() || OFFICIAL_SEAL_BASE64_DATA_URL;
         sealImg.onload = () => resolve();
         sealImg.onerror = () => {
           sealImg.onload = () => resolve();

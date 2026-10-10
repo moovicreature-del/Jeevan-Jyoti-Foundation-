@@ -74,17 +74,19 @@ function loadDevBranding(): { appLogoUrl: string; appThumbnailUrl: string } {
     }
   } catch {}
   return {
-    appLogoUrl: '/uploads/jjf_official_app_logo_current.png',
-    appThumbnailUrl: '/uploads/jjf_official_app_thumbnail_current.png'
+    appLogoUrl: '',
+    appThumbnailUrl: '',
+    certificateSealUrl: ''
   };
 }
 
-function saveDevBranding(logoUrl?: string, thumbnailUrl?: string) {
+function saveDevBranding(logoUrl?: string, thumbnailUrl?: string, sealUrl?: string) {
   try {
     const current = loadDevBranding();
     const updated = {
       appLogoUrl: logoUrl !== undefined ? logoUrl : current.appLogoUrl,
       appThumbnailUrl: thumbnailUrl !== undefined ? thumbnailUrl : current.appThumbnailUrl,
+      certificateSealUrl: sealUrl !== undefined ? sealUrl : ((current as any).certificateSealUrl || ''),
       updatedAt: new Date().toISOString()
     };
     if (!fs.existsSync(UPLOADS_DIR)) {
@@ -97,6 +99,7 @@ function saveDevBranding(logoUrl?: string, thumbnailUrl?: string) {
 const initialDevBranding = loadDevBranding();
 let devAppThumbnailUrl: string = initialDevBranding.appThumbnailUrl;
 let devAppLogoUrl: string = initialDevBranding.appLogoUrl;
+let devCertificateSealUrl: string = (initialDevBranding as any).certificateSealUrl || '';
 
 function deleteDevUploadedMediaByUrl(targetUrl?: string): boolean {
   if (!targetUrl || typeof targetUrl !== 'string') return false;
@@ -499,6 +502,56 @@ function apiDevServerPlugin(): Plugin {
             return sendJson(200, { success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
           }
           return sendJson(200, { success: true, appLogoUrl: devAppLogoUrl });
+        }
+
+        // Dynamic certificate seal endpoint
+        if (req.url?.startsWith('/api/certificate-seal')) {
+          if (req.method === 'POST') {
+            const body = await getBody();
+            devCertificateSealUrl = typeof body?.sealUrl === 'string' ? body.sealUrl.trim() : '';
+            saveDevBranding(undefined, undefined, devCertificateSealUrl);
+            return sendJson(200, { success: true, certificateSealUrl: devCertificateSealUrl });
+          }
+          if (req.method === 'DELETE') {
+            let targetUrl = devCertificateSealUrl;
+            try {
+              const u = new URL(req.url, 'http://localhost');
+              const q = u.searchParams.get('url');
+              if (q) targetUrl = q;
+            } catch {}
+            if (targetUrl) {
+              deleteDevUploadedMediaByUrl(targetUrl);
+            }
+            devCertificateSealUrl = '';
+            saveDevBranding(undefined, undefined, '');
+            return sendJson(200, { success: true, certificateSealUrl: '', message: 'आधिकारिक मुहर सर्वर व स्टोरेज से स्थायी रूप से हटा दी गई है।' });
+          }
+          return sendJson(200, { success: true, certificateSealUrl: devCertificateSealUrl });
+        }
+
+        // Master Purge All Branding: permanently deletes all logos, thumbnails, and official seals from memory, disk, and manifests
+        if (req.url === '/api/purge-all-branding' && req.method === 'POST') {
+          devAppLogoUrl = '';
+          devAppThumbnailUrl = '';
+          devCertificateSealUrl = '';
+          saveDevBranding('', '', '');
+          // Purge uploaded branding files
+          try {
+            if (fs.existsSync(UPLOADS_DIR)) {
+              const files = fs.readdirSync(UPLOADS_DIR);
+              for (const f of files) {
+                if (f.toLowerCase().includes('logo') || f.toLowerCase().includes('thumb') || f.toLowerCase().includes('seal')) {
+                  try {
+                    fs.unlinkSync(path.join(UPLOADS_DIR, f));
+                  } catch {}
+                }
+              }
+            }
+          } catch {}
+          return sendJson(200, {
+            success: true,
+            message: 'सभी लोगो, आधिकारिक मुहर एवं थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिए गए हैं।'
+          });
         }
 
         // 1. POST /api/send-otp-sms

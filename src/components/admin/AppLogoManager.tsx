@@ -39,7 +39,8 @@ import {
   optimizeImageFile,
   purgeAllOtherLogosFromDatabaseAndEnforceSoleLogo,
   deleteLogoFromAllDatabases,
-  fixAndCleanAllLogosAndThumbnails
+  fixAndCleanAllLogosAndThumbnails,
+  deleteAllLogosSealsAndThumbnailsPermanently
 } from '../../services/adminService';
 import { BrandLogo } from '../common/BrandLogo';
 import { RoyalCertificateSeal } from '../common/RoyalCertificateSeal';
@@ -563,33 +564,41 @@ export const AppLogoManager: React.FC = () => {
     });
   };
 
-  const handleFixAndCleanAll = () => {
+  const handlePurgeAllBrandingPermanently = () => {
     setConfirmDialog({
       isOpen: true,
-      title: 'पुराने लोगो/थंबनेल हटाएं व वर्तमान आधिकारिक लोगो लागू करें?',
-      description: 'यह डेटाबेस और सभी स्टोरेज से पुराने अप्रचलित लोगो और थंबनेल को स्थायी रूप से हटाकर, वर्तमान आधिकारिक लोगो व ऐप थंबनेल को पूरी वेबसाइट, PWA इंस्टॉलेशन और सोशल शेयरिंग पर 100% लागू कर देगा। क्या आप आगे बढ़ना चाहते हैं?',
-      confirmLabel: 'हाँ, वर्तमान लोगो ठीक करें व लागू करें',
-      isDanger: false,
+      title: '🚨 सभी लोगो, आधिकारिक मुहर एवं थंबनेल स्थायी रूप से डिलीट करें?',
+      description: 'यह कार्रवाई डेटाबेस (Firestore), लोकल स्टोरेज, सर्वर कैशे एवं सॉफ्टवेयर के सभी पुराने व वर्तमान लोगो, आधिकारिक मुहर (Official Seal) और थंबनेल को 100% स्थायी रूप से डिलीट कर देगी। कोई भी पुराना संदर्भ शेष नहीं रहेगा। क्या आप सब कुछ स्थायी रूप से डिलीट करना चाहते हैं?',
+      confirmLabel: 'हाँ, सब कुछ स्थायी रूप से डिलीट करें',
+      isDanger: true,
       action: async () => {
         const adminName = adminProfile?.name || 'सिस्टम व्यवस्थापक';
         const adminUid = adminProfile?.uid || 'admin';
         setIsApplying(true);
-        startUpload('लोगो व थंबनेल स्थायी सुधार', 'content', 'पुराने डेटा को हटाकर वर्तमान आधिकारिक लोगो लागू किया जा रहा है...');
+        startUpload('स्थायी पूर्ण निष्कासन', 'content', 'सभी लोगो, आधिकारिक मुहर एवं थंबनेल डेटाबेस व सॉफ्टवेयर से स्थायी रूप से हटाए जा रहे हैं...');
         try {
-          const res = await fixAndCleanAllLogosAndThumbnails(adminName, adminUid);
-          setLogoPreviewUrl('/uploads/jjf_official_app_logo_current.png');
-          setThumbPreviewUrl('/uploads/jjf_official_app_thumbnail_current.png');
+          const res = await deleteAllLogosSealsAndThumbnailsPermanently(adminName, adminUid);
+          setLogoPreviewUrl('');
+          setThumbPreviewUrl('');
+          setSelectedLogoFile(null);
+          setSelectedThumbFile(null);
+          setLogoDirectUrlInput('');
+          setThumbDirectUrlInput('');
           completeUpload(res.message);
           toast.success(res.message);
         } catch (err: any) {
           console.error(err);
-          failUpload('सुधार प्रक्रिया में त्रुटि आई।');
+          failUpload('हटाने की प्रक्रिया में त्रुटि आई।');
           toast.error('त्रुटि आई, कृपया पुनः प्रयास करें।');
         } finally {
           setIsApplying(false);
         }
       }
     });
+  };
+
+  const handleFixAndCleanAll = () => {
+    handlePurgeAllBrandingPermanently();
   };
 
   const isCustomLogoActive = Boolean(content?.appLogoUrl || logoPreviewUrl);
@@ -655,6 +664,33 @@ export const AppLogoManager: React.FC = () => {
             )
           )}
         </div>
+      </div>
+
+      {/* MASTER PERMANENT PURGE ALL BRANDING BANNER */}
+      <div className="bg-gradient-to-r from-red-50 via-amber-50 to-red-50 border-2 border-red-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-md">
+            <Trash2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-red-950 flex items-center gap-1.5">
+              डेटाबेस व सॉफ्टवेयर से सभी लोगो, सील एवं थंबनेल का पूर्ण निष्कासन
+            </h4>
+            <p className="text-xs text-red-800 mt-0.5">
+              डेटाबेस (Firestore), स्टोरेज, सर्वर कैशे व सॉफ्टवेयर से सभी पुराने व वर्तमान लोगो, आधिकारिक मुहर एवं थंबनेल को स्थायी रूप से 100% डिलीट करें।
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          id="btn-master-purge-all-branding"
+          onClick={handlePurgeAllBrandingPermanently}
+          disabled={isApplying || isUploading}
+          className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-xl font-black text-xs transition cursor-pointer shadow-md hover:shadow-lg flex items-center justify-center gap-2 shrink-0"
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>सब कुछ स्थायी डिलीट करें</span>
+        </button>
       </div>
 
       {/* 2. TRIPLE MODE NAVIGATION TABS */}
@@ -844,13 +880,13 @@ export const AppLogoManager: React.FC = () => {
                 <button
                   type="button"
                   id="btn-fix-branding-official-logo-tab"
-                  onClick={handleFixAndCleanAll}
+                  onClick={handlePurgeAllBrandingPermanently}
                   disabled={isApplying || isUploading}
-                  title="पुराने लोगो व थंबनेल हटाएं और वर्तमान आधिकारिक लोगो 100% लागू करें"
-                  className="flex items-center gap-2 px-4 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-emerald-600"
+                  title="सभी लोगो, आधिकारिक मुहर एवं थंबनेल डेटाबेस व सॉफ्टवेयर से स्थायी रूप से हटाएं"
+                  className="flex items-center gap-2 px-4 py-3.5 bg-red-700 hover:bg-red-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-red-600"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>वर्तमान आधिकारिक लोगो व थंबनेल ठीक करें</span>
+                  <Trash2 className="w-4 h-4 text-white" />
+                  <span>सभी लोगो, सील व थंबनेल स्थायी डिलीट करें</span>
                 </button>
               </div>
 
@@ -1168,13 +1204,13 @@ export const AppLogoManager: React.FC = () => {
                 <button
                   type="button"
                   id="btn-fix-branding-official-thumb-tab"
-                  onClick={handleFixAndCleanAll}
+                  onClick={handlePurgeAllBrandingPermanently}
                   disabled={isApplying || isUploading}
-                  title="पुराने लोगो व थंबनेल हटाएं और वर्तमान आधिकारिक लोगो 100% लागू करें"
-                  className="flex items-center gap-2 px-4 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-emerald-600"
+                  title="सभी लोगो, आधिकारिक मुहर एवं थंबनेल डेटाबेस व सॉफ्टवेयर से स्थायी रूप से हटाएं"
+                  className="flex items-center gap-2 px-4 py-3.5 bg-red-700 hover:bg-red-800 text-white rounded-2xl font-bold text-xs transition cursor-pointer shadow-md hover:shadow-lg border border-red-600"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>वर्तमान आधिकारिक लोगो व थंबनेल ठीक करें</span>
+                  <Trash2 className="w-4 h-4 text-white" />
+                  <span>सभी लोगो, सील व थंबनेल स्थायी डिलीट करें</span>
                 </button>
               </div>
             </div>

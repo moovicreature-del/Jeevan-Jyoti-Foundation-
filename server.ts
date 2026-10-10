@@ -214,28 +214,31 @@ function deleteUploadedMediaByUrl(targetUrl?: string): boolean {
 // ============================================================================
 const BRANDING_FILE = path.join(UPLOADS_DIR, 'app-branding.json');
 
-function loadPersistentBranding(): { appLogoUrl: string; appThumbnailUrl: string } {
+function loadPersistentBranding(): { appLogoUrl: string; appThumbnailUrl: string; certificateSealUrl: string } {
   try {
     if (fs.existsSync(BRANDING_FILE)) {
       const data = JSON.parse(fs.readFileSync(BRANDING_FILE, 'utf-8'));
       return {
         appLogoUrl: typeof data.appLogoUrl === 'string' ? data.appLogoUrl : '',
-        appThumbnailUrl: typeof data.appThumbnailUrl === 'string' ? data.appThumbnailUrl : ''
+        appThumbnailUrl: typeof data.appThumbnailUrl === 'string' ? data.appThumbnailUrl : '',
+        certificateSealUrl: typeof data.certificateSealUrl === 'string' ? data.certificateSealUrl : ''
       };
     }
   } catch {}
   return {
-    appLogoUrl: '/uploads/jjf_official_app_logo_current.png',
-    appThumbnailUrl: '/uploads/jjf_official_app_thumbnail_current.png'
+    appLogoUrl: '',
+    appThumbnailUrl: '',
+    certificateSealUrl: ''
   };
 }
 
-function savePersistentBranding(logoUrl?: string, thumbnailUrl?: string) {
+function savePersistentBranding(logoUrl?: string, thumbnailUrl?: string, sealUrl?: string) {
   try {
     const current = loadPersistentBranding();
     const updated = {
       appLogoUrl: logoUrl !== undefined ? logoUrl : current.appLogoUrl,
       appThumbnailUrl: thumbnailUrl !== undefined ? thumbnailUrl : current.appThumbnailUrl,
+      certificateSealUrl: sealUrl !== undefined ? sealUrl : current.certificateSealUrl,
       updatedAt: new Date().toISOString()
     };
     if (!fs.existsSync(UPLOADS_DIR)) {
@@ -248,6 +251,7 @@ function savePersistentBranding(logoUrl?: string, thumbnailUrl?: string) {
 const initialBranding = loadPersistentBranding();
 let serverAppThumbnailUrl: string = initialBranding.appThumbnailUrl;
 let serverAppLogoUrl: string = initialBranding.appLogoUrl;
+let serverCertificateSealUrl: string = initialBranding.certificateSealUrl;
 
 app.get('/api/app-thumbnail', (_req, res) => {
   res.json({ success: true, appThumbnailUrl: serverAppThumbnailUrl });
@@ -290,6 +294,52 @@ app.delete('/api/app-logo', (req, res) => {
   serverAppLogoUrl = '';
   savePersistentBranding('', undefined);
   res.json({ success: true, appLogoUrl: '', message: 'लोगो सर्वर व स्टोरेज से स्थायी रूप से हटा दिया गया है।' });
+});
+
+// Dynamic Certificate Seal Engine
+app.get('/api/certificate-seal', (_req, res) => {
+  res.json({ success: true, certificateSealUrl: serverCertificateSealUrl });
+});
+
+app.post('/api/certificate-seal', (req, res) => {
+  const { sealUrl } = req.body || {};
+  serverCertificateSealUrl = typeof sealUrl === 'string' ? sealUrl.trim() : '';
+  savePersistentBranding(undefined, undefined, serverCertificateSealUrl);
+  res.json({ success: true, certificateSealUrl: serverCertificateSealUrl });
+});
+
+app.delete('/api/certificate-seal', (req, res) => {
+  const targetUrl = (req.query.url as string) || req.body?.url || serverCertificateSealUrl;
+  if (targetUrl) {
+    deleteUploadedMediaByUrl(targetUrl);
+  }
+  serverCertificateSealUrl = '';
+  savePersistentBranding(undefined, undefined, '');
+  res.json({ success: true, certificateSealUrl: '', message: 'आधिकारिक मुहर सर्वर व स्टोरेज से स्थायी रूप से हटा दी गई है।' });
+});
+
+// Master Purge All Branding Endpoint
+app.post('/api/purge-all-branding', (_req, res) => {
+  serverAppLogoUrl = '';
+  serverAppThumbnailUrl = '';
+  serverCertificateSealUrl = '';
+  savePersistentBranding('', '', '');
+  try {
+    if (fs.existsSync(UPLOADS_DIR)) {
+      const files = fs.readdirSync(UPLOADS_DIR);
+      for (const f of files) {
+        if (f.toLowerCase().includes('logo') || f.toLowerCase().includes('thumb') || f.toLowerCase().includes('seal')) {
+          try {
+            fs.unlinkSync(path.join(UPLOADS_DIR, f));
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+  res.json({
+    success: true,
+    message: 'सभी लोगो, आधिकारिक मुहर एवं थंबनेल सर्वर व स्टोरेज से स्थायी रूप से हटा दिए गए हैं।'
+  });
 });
 
 // Dynamic Web App Manifest - returns manifest with latest custom thumbnail

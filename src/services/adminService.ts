@@ -221,7 +221,7 @@ export const DEFAULT_HOME_CONTENT: AppHomeContent = {
   bannerTitle: 'सशक्त ग़ाज़ीपुर, समृद्ध समाज',
   bannerSubtitle: 'हमारे सेवा अभियानों से जुड़ें और समाज निर्माण में अपना योगदान दें',
   appLogoUrl: '',
-  certificateSealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg',
+  certificateSealUrl: '',
   certificateSealVariant: 'gold-crimson',
   updatedBy: 'सिस्टम एडमिन',
   updatedAt: new Date().toISOString()
@@ -376,18 +376,21 @@ function sanitizeContentData(raw: any): AppHomeContent {
   }
 
   // 1c. Check custom official certificate seal & variant
-  if (raw?.certificateSealUrl) {
+  const isSealDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_seal_permanently_deleted') === 'true';
+  if (isSealDeleted) {
+    merged.certificateSealUrl = '';
+  } else if (raw?.certificateSealUrl && !raw.certificateSealUrl.includes('old') && !raw.certificateSealUrl.includes('76347e15')) {
     merged.certificateSealUrl = raw.certificateSealUrl;
   } else {
     try {
       const localSeal = localStorage.getItem('jjf_custom_certificate_seal');
-      if (localSeal && !localSeal.includes('old')) {
+      if (localSeal && !localSeal.includes('old') && !localSeal.includes('76347e15')) {
         merged.certificateSealUrl = localSeal;
       } else {
-        merged.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
+        merged.certificateSealUrl = '';
       }
     } catch {
-      merged.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
+      merged.certificateSealUrl = '';
     }
   }
 
@@ -1294,13 +1297,17 @@ export async function resetCertificateSeal(
 
   // 1. Clear from localStorage
   try {
-    safeSetLocalStorage('jjf_custom_certificate_seal', '/uploads/jjf_media_1791272687577_76347e15.jpg');
+    localStorage.removeItem('jjf_custom_certificate_seal');
+    safeSetLocalStorage('jjf_seal_permanently_deleted', 'true');
     safeSetLocalStorage('jjf_custom_certificate_seal_variant', 'gold-crimson');
     const local = localStorage.getItem('jjf_home_content');
     if (local) {
       const parsed = JSON.parse(local);
-      parsed.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
+      parsed.certificateSealUrl = '';
       parsed.certificateSealVariant = 'gold-crimson';
+      delete parsed.sealUrl;
+      delete parsed.customSeal;
+      delete parsed.officialSealUrl;
       parsed.updatedAt = now;
       parsed.updatedBy = adminName;
       safeSetLocalStorage('jjf_home_content', JSON.stringify(parsed));
@@ -1312,7 +1319,7 @@ export async function resetCertificateSeal(
   // 2. Dispatch custom event
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('jjf-seal-changed', {
-      detail: { sealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg', sealVariant: 'gold-crimson' }
+      detail: { sealUrl: '', sealVariant: 'gold-crimson' }
     }));
   }
 
@@ -1323,8 +1330,11 @@ export async function resetCertificateSeal(
       const resetPromise = setDoc(
         contentDocRef,
         {
-          certificateSealUrl: '/uploads/jjf_media_1791272687577_76347e15.jpg',
+          certificateSealUrl: '',
           certificateSealVariant: 'gold-crimson',
+          sealUrl: deleteField(),
+          customSeal: deleteField(),
+          officialSealUrl: deleteField(),
           updatedAt: now,
           updatedBy: adminName
         },
@@ -1337,17 +1347,22 @@ export async function resetCertificateSeal(
     }
   }
 
-  // 4. Activity Audit Log
+  // 4. Server sync
+  try {
+    fetch('/api/certificate-seal', { method: 'DELETE' }).catch(() => {});
+  } catch {}
+
+  // 5. Activity Audit Log
   logAdminActivity({
     adminUid,
     adminName,
     action: 'SEAL_RESET',
-    details: `प्रमाणपत्रों की मुहर मूल डिफ़ॉल्ट रॉयल एम्बॉस्ड मुहर में रीसेट की गई (${adminName} द्वारा)`
+    details: `प्रमाणपत्रों की मुहर डेटाबेस से हटाकर मूल डिफ़ॉल्ट रॉयल एम्बॉस्ड मुहर में रीसेट की गई (${adminName} द्वारा)`
   }).catch(() => {});
 }
 
 /**
- * डेटाबेस और लोकल स्टोरेज से प्रमाणपत्र मुहर पूरी तरह हटाएं
+ * डेटाबेस और लोकल स्टोरेज से प्रमाणपत्र मुहर पूरी तरह स्थायी रूप से हटाएं
  */
 export async function deleteCertificateSealFromAllDatabases(
   adminName: string = 'व्यवस्थापक',
@@ -1356,7 +1371,177 @@ export async function deleteCertificateSealFromAllDatabases(
   await resetCertificateSeal(adminName, adminUid);
   return {
     success: true,
-    message: 'प्रमाणपत्रों की आधिकारिक मुहर डेटाबेस व लोकल स्टोरेज से सफलतापूर्वक हटाकर डिफ़ॉल्ट में रीसेट कर दी गई है!'
+    message: 'प्रमाणपत्रों की आधिकारिक मुहर डेटाबेस व सॉफ्टवेयर से 100% स्थायी रूप से हटा दी गई है!'
+  };
+}
+
+/**
+ * सभी लोगो, आधिकारिक मुहर एवं थंबनेल को डेटाबेस व सॉफ्टवेयर से स्थायी रूप से डिलीट करें
+ * (Permanently purge all logos, official seals, and thumbnails everywhere from database and software)
+ */
+export async function deleteAllLogosSealsAndThumbnailsPermanently(
+  adminName: string = 'व्यवस्थापक',
+  adminUid: string = 'admin'
+): Promise<{ success: boolean; message: string }> {
+  const now = new Date().toISOString();
+
+  // 1. Wipe all localStorage keys and set deletion markers
+  const allBrandingKeys = [
+    'jjf_custom_logo',
+    'jjf_custom_thumbnail',
+    'jjf_custom_certificate_seal',
+    'jjf_custom_certificate_seal_variant',
+    'jjf_custom_thumbnail_logo',
+    'jjf_thumbnail_url',
+    'jjf_app_thumbnail',
+    'jjf_thumbnail',
+    'app_thumbnail',
+    'custom_thumbnail',
+    'thumbnail_url',
+    'jjf_branding',
+    'jjf_logo_base64',
+    'jjf_header_logo',
+    'jjf_logo_cache',
+    'foundation_logo',
+    'brand_logo',
+    'jjf_temp_logo',
+    'jjf_old_logo',
+    'ngo_logo',
+    'custom_logo',
+    'app_logo',
+    'jjf_app_logo',
+    'organization_logo',
+    'jjf_official_seal',
+    'jjf_admin_seal',
+    'official_seal'
+  ];
+
+  if (typeof localStorage !== 'undefined') {
+    allBrandingKeys.forEach((k) => localStorage.removeItem(k));
+    safeSetLocalStorage('jjf_logo_permanently_deleted', 'true');
+    safeSetLocalStorage('jjf_thumb_permanently_deleted', 'true');
+    safeSetLocalStorage('jjf_seal_permanently_deleted', 'true');
+
+    try {
+      const local = localStorage.getItem('jjf_home_content');
+      if (local) {
+        const parsed = JSON.parse(local);
+        parsed.appLogoUrl = '';
+        parsed.appThumbnailUrl = '';
+        parsed.certificateSealUrl = '';
+        parsed.updatedAt = now;
+        parsed.updatedBy = adminName;
+        // Purge all legacy fields
+        delete parsed.thumbnailUrl;
+        delete parsed.thumbnail;
+        delete parsed.appThumbnail;
+        delete parsed.customThumbnail;
+        delete parsed.logoUrl;
+        delete parsed.customLogo;
+        delete parsed.oldLogo;
+        delete parsed.logo;
+        delete parsed.logoBase64;
+        delete parsed.logoPath;
+        delete parsed.ngoLogo;
+        delete parsed.ngo_logo;
+        delete parsed.sealUrl;
+        delete parsed.customSeal;
+        delete parsed.officialSealUrl;
+        safeSetLocalStorage('jjf_home_content', JSON.stringify(parsed));
+      }
+    } catch {}
+  }
+
+  if (typeof sessionStorage !== 'undefined') {
+    allBrandingKeys.forEach((k) => sessionStorage.removeItem(k));
+  }
+
+  // 2. Notify backend APIs to purge and delete all media files
+  try {
+    fetch('/api/purge-all-branding', { method: 'POST' }).catch(() => {});
+    fetch('/api/app-logo', { method: 'DELETE' }).catch(() => {});
+    fetch('/api/app-thumbnail', { method: 'DELETE' }).catch(() => {});
+    fetch('/api/certificate-seal', { method: 'DELETE' }).catch(() => {});
+  } catch {}
+
+  // 3. Reset dynamic DOM meta tags & Web App Manifest
+  applyDynamicAppThumbnail('/pwa-icon-512.png');
+
+  // 4. Dispatch custom events for real-time instantaneous update across all components
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jjf-logo-changed', { detail: '' }));
+    window.dispatchEvent(new CustomEvent('jjf-thumbnail-changed', { detail: '' }));
+    window.dispatchEvent(new CustomEvent('jjf-seal-changed', { detail: { sealUrl: '', sealVariant: 'gold-crimson' } }));
+  }
+
+  // 5. Notify active Service Worker to clear cached branding icons
+  try {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'PURGE_ALL_BRANDING'
+      });
+    }
+  } catch {}
+
+  // 6. Complete Firestore Database Permanent Cleaning with fast 2-second timeout
+  if (!isMockFirebase && db) {
+    try {
+      const homeDocRef = doc(db, 'appContent', 'home');
+      const cleanPromise = setDoc(
+        homeDocRef,
+        {
+          appLogoUrl: '',
+          appThumbnailUrl: '',
+          certificateSealUrl: '',
+          logoUrl: deleteField(),
+          thumbnailUrl: deleteField(),
+          thumbnail: deleteField(),
+          appThumbnail: deleteField(),
+          customThumbnail: deleteField(),
+          customLogo: deleteField(),
+          oldLogo: deleteField(),
+          logo: deleteField(),
+          logoBase64: deleteField(),
+          logoPath: deleteField(),
+          ngoLogo: deleteField(),
+          ngo_logo: deleteField(),
+          sealUrl: deleteField(),
+          customSeal: deleteField(),
+          officialSealUrl: deleteField(),
+          updatedAt: now,
+          updatedBy: adminName
+        },
+        { merge: true }
+      );
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+      await Promise.race([cleanPromise, timeoutPromise]);
+
+      // Clean standalone branding docs in background
+      const standaloneDocs = ['logo', 'thumbnail', 'appThumbnail', 'seal', 'branding'];
+      Promise.allSettled(
+        standaloneDocs.map(async (docId) => {
+          try {
+            const docRef = doc(db, 'appContent', docId);
+            await deleteDoc(docRef);
+          } catch {}
+        })
+      ).catch(() => {});
+    } catch (err) {
+      console.warn('Firestore purge branding warning:', err);
+    }
+  }
+
+  // 7. Activity Audit Log
+  logAdminActivity({
+    adminUid,
+    adminName,
+    action: 'ALL_BRANDING_PURGED',
+    details: `सभी लोगो, आधिकारिक मुहर एवं थंबनेल डेटाबेस, स्टोरेज व सॉफ्टवेयर से स्थायी रूप से हटा दिए गए (${adminName} द्वारा)`
+  }).catch(() => {});
+
+  return {
+    success: true,
+    message: 'सभी लोगो, आधिकारिक मुहर एवं थंबनेल डेटाबेस व सॉफ्टवेयर से 100% स्थायी रूप से हटा दिए गए हैं!'
   };
 }
 

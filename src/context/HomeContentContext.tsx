@@ -69,11 +69,12 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
               parsed.appThumbnailUrl = '';
             }
           }
-          const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
-          if (customSeal !== null && customSeal.trim() && !customSeal.includes('old')) {
-            parsed.certificateSealUrl = customSeal;
+          const isSealDeleted = typeof window !== 'undefined' && localStorage.getItem('jjf_seal_permanently_deleted') === 'true';
+          const customSeal = isSealDeleted ? '' : localStorage.getItem('jjf_custom_certificate_seal');
+          if (customSeal && customSeal.trim() && !customSeal.includes('old') && !customSeal.includes('76347e15')) {
+            parsed.certificateSealUrl = customSeal.trim();
           } else {
-            parsed.certificateSealUrl = '/uploads/jjf_media_1791272687577_76347e15.jpg';
+            parsed.certificateSealUrl = '';
           }
           const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
           if (customSealVariant) parsed.certificateSealVariant = customSealVariant as any;
@@ -82,8 +83,9 @@ export const HomeContentProvider: React.FC<{ children: ReactNode }> = ({ childre
         const customLogo = localStorage.getItem('jjf_custom_logo');
         const isThumbDeleted = localStorage.getItem('jjf_thumb_permanently_deleted') === 'true';
         const customThumb = isThumbDeleted ? '' : localStorage.getItem('jjf_custom_thumbnail');
-        const customSeal = localStorage.getItem('jjf_custom_certificate_seal');
-        const validSeal = customSeal && !customSeal.includes('old') ? customSeal : '/uploads/jjf_media_1791272687577_76347e15.jpg';
+        const isSealDeleted = localStorage.getItem('jjf_seal_permanently_deleted') === 'true';
+        const customSeal = isSealDeleted ? '' : localStorage.getItem('jjf_custom_certificate_seal');
+        const validSeal = customSeal && !customSeal.includes('old') && !customSeal.includes('76347e15') ? customSeal : '';
         const customSealVariant = localStorage.getItem('jjf_custom_certificate_seal_variant');
         if (customLogo || customThumb || customSeal) {
           return {

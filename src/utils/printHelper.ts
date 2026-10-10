@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
-import { OFFICIAL_SEAL_BASE64_DATA_URL, DEFAULT_OFFICIAL_SEAL_URL } from '../data/officialSealData';
+import { getActiveOfficialSealUrl, OFFICIAL_SEAL_BASE64_DATA_URL, DEFAULT_OFFICIAL_SEAL_URL } from '../data/officialSealData';
 
 export const PUBLIC_LOGO_URL = '';
 
@@ -75,26 +75,29 @@ export async function forceResolvePublicAssets(element: HTMLElement): Promise<()
 
     // Resolve target src for image (custom logo, remote url, or fallback asset)
     let targetSrc = origSrc;
-    const isSealImg = img.hasAttribute('data-official-seal') || img.alt?.includes('Seal') || origSrc?.includes('seal') || origSrc?.includes('76347e15');
+    const isSealImg = img.hasAttribute('data-official-seal') || img.alt?.includes('Seal') || origSrc?.includes('seal');
     if (isSealImg) {
-      // Always guarantee the authentic uploaded official seal in base64.
-      // Guarantees zero change, zero CORS failure, and zero reversion upon download!
-      targetSrc = OFFICIAL_SEAL_BASE64_DATA_URL;
-      img.src = OFFICIAL_SEAL_BASE64_DATA_URL;
+      if (origSrc && !origSrc.includes('old') && !origSrc.includes('76347e15')) {
+        targetSrc = origSrc;
+      } else {
+        const activeSeal = getActiveOfficialSealUrl();
+        targetSrc = activeSeal || origSrc;
+      }
+      if (targetSrc) {
+        img.src = targetSrc;
+      }
     } else if (!targetSrc && PUBLIC_LOGO_URL) {
       targetSrc = PUBLIC_LOGO_URL;
     }
 
     try {
-      if (!isSealImg && targetSrc && !targetSrc.startsWith('data:')) {
+      if (targetSrc && !targetSrc.startsWith('data:')) {
         // Convert to base64 Data URL to guarantee CORS and instant rendering in html2canvas
         const dataUrl = await convertImageToDataUrl(targetSrc);
         img.src = dataUrl;
       }
     } catch {
-      if (isSealImg) {
-        img.src = OFFICIAL_SEAL_BASE64_DATA_URL;
-      } else {
+      if (targetSrc) {
         img.src = targetSrc;
       }
     }
